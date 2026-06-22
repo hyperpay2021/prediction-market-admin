@@ -5,12 +5,15 @@ import {
   BarChart3,
   Bell,
   CheckCircle2,
+  ClipboardCheck,
   Clock3,
   Database,
   FileSearch,
   Gavel,
   LineChart,
   LockKeyhole,
+  MessageSquare,
+  Percent,
   RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
@@ -26,7 +29,9 @@ type ModuleKey =
   | "markets"
   | "instrumentRules"
   | "instruments"
+  | "instrumentReviews"
   | "groupRules"
+  | "feeRules"
   | "groups"
   | "autoOrder"
   | "orders"
@@ -41,12 +46,14 @@ const navItems: Array<{ key: ModuleKey; label: string; icon: typeof Activity }> 
   { key: "overview", label: "总览", icon: Activity },
   { key: "markets", label: "市场同步", icon: Database },
   { key: "instruments", label: "可交易标的", icon: FileSearch },
+  { key: "instrumentReviews", label: "标的审核", icon: ClipboardCheck },
   { key: "groups", label: "归组审核", icon: SlidersHorizontal },
   { key: "autoOrder", label: "智能推荐", icon: Zap },
   { key: "orders", label: "订单管理", icon: Gavel },
   { key: "positions", label: "持仓结算", icon: WalletCards },
   { key: "instrumentRules", label: "标的过滤规则", icon: SlidersHorizontal },
   { key: "groupRules", label: "事件归组规则", icon: SlidersHorizontal },
+  { key: "feeRules", label: "平台手续费", icon: Percent },
   { key: "auth", label: "API 认证", icon: LockKeyhole },
   { key: "risk", label: "风控审计", icon: ShieldAlert },
   { key: "reports", label: "数据报表", icon: BarChart3 },
@@ -68,10 +75,37 @@ const metrics = [
   { label: "高匹配待确认", value: "18", trend: "仅 >=95 入队", tone: "amber" as Tone },
 ]
 
+const initialPlatformFeeConfig = {
+  problyBaseFeeBps: 20,
+  maxBuilderFeeBps: 50,
+  feePlanVersion: "fee_v1",
+  effectiveAt: "2026-06-16 00:00 UTC",
+  status: "生效中",
+}
+
+const platformFeeHistory = [
+  { version: "fee_v1", problyBaseFeeBps: 20, maxBuilderFeeBps: 50, operator: "产品运营", effectiveAt: "2026-06-16 00:00 UTC", note: "一期默认平台基础费率" },
+  { version: "fee_draft_0", problyBaseFeeBps: 0, maxBuilderFeeBps: 50, operator: "系统初始化", effectiveAt: "未生效", note: "上线前占位配置" },
+]
+
+const createMockEventIcon = (background: string, label: string) =>
+  `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="${background}"/><text x="48" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="white">${label}</text></svg>`,
+  )}`
+
+const eventIcons = {
+  worldCup: createMockEventIcon("#0f766e", "WC"),
+  bitcoin: createMockEventIcon("#d97706", "BTC"),
+  ethereum: createMockEventIcon("#2563eb", "ETH"),
+  cpi: createMockEventIcon("#be123c", "CPI"),
+}
+
 const instruments = [
   {
     id: "INS-WC-ESP",
     eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    eventIconUrl: eventIcons.worldCup,
     venueMarketId: "poly-world-cup-winner-2026",
     outcomeId: "0x21...ESP",
     outcomeName: "西班牙",
@@ -93,6 +127,8 @@ const instruments = [
   {
     id: "INS-WC-FRA",
     eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    eventIconUrl: eventIcons.worldCup,
     venueMarketId: "poly-world-cup-winner-2026",
     outcomeId: "0x32...FRA",
     outcomeName: "法国",
@@ -114,6 +150,8 @@ const instruments = [
   {
     id: "INS-WC-ENG",
     eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    eventIconUrl: eventIcons.worldCup,
     venueMarketId: "poly-world-cup-winner-2026",
     outcomeId: "0x43...ENG",
     outcomeName: "英格兰",
@@ -135,6 +173,8 @@ const instruments = [
   {
     id: "INS-WC-POR",
     eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    eventIconUrl: eventIcons.worldCup,
     venueMarketId: "poly-world-cup-winner-2026",
     outcomeId: "0x54...POR",
     outcomeName: "葡萄牙",
@@ -156,6 +196,8 @@ const instruments = [
   {
     id: "INS-2048",
     eventId: "EVT-BTC-105K-0614",
+    venueEventId: "poly-event-289001",
+    eventIconUrl: eventIcons.bitcoin,
     venueMarketId: "poly-btc-105k-0614",
     outcomeId: "0x8f...YES",
     outcomeName: "YES",
@@ -177,6 +219,8 @@ const instruments = [
   {
     id: "INS-2091",
     eventId: "EVT-BTC-105K-FRIDAY",
+    venueEventId: "predict-event-88219",
+    eventIconUrl: eventIcons.bitcoin,
     venueMarketId: "predict-88219",
     outcomeId: "YES",
     outcomeName: "YES",
@@ -198,6 +242,8 @@ const instruments = [
   {
     id: "INS-1880",
     eventId: "EVT-ETH-4000-WEEK",
+    venueEventId: "poly-event-289114",
+    eventIconUrl: eventIcons.ethereum,
     venueMarketId: "poly-eth-4000-week",
     outcomeId: "0x4a...YES",
     outcomeName: "YES",
@@ -219,6 +265,8 @@ const instruments = [
   {
     id: "INS-1744",
     eventId: "EVT-CPI-LOWER-FORECAST",
+    venueEventId: "predict-event-77201",
+    eventIconUrl: eventIcons.cpi,
     venueMarketId: "predict-77201",
     outcomeId: "YES",
     outcomeName: "YES",
@@ -236,6 +284,64 @@ const instruments = [
     recommendation: "不进入推荐池",
     lastChange: "10:15 流动性低于阈值",
     supportedDirections: "买 YES / 买 NO / 卖 YES / 卖 NO",
+  },
+]
+
+const polymarketEventComments = [
+  {
+    commentId: "comment-81200",
+    eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    displayName: "FootballQuant",
+    profileImageUrl: "",
+    body: "Spain and France are close, but the tournament draw will matter more than the current headline probability.",
+    reactionCount: 24,
+    createdAt: "2026-06-18 10:03 UTC",
+    position: "Spain YES 315.0",
+  },
+  {
+    commentId: "comment-81184",
+    eventId: "EVT-WC-CHAMPION-2026",
+    venueEventId: "poly-event-world-cup-2026",
+    displayName: "0x93A1...C210",
+    profileImageUrl: "",
+    body: "The options belong to one event, while each country remains an independent tradable instrument.",
+    reactionCount: 9,
+    createdAt: "2026-06-18 09:56 UTC",
+    position: "France YES 204.2",
+  },
+  {
+    commentId: "comment-81021",
+    eventId: "EVT-BTC-105K-0614",
+    venueEventId: "poly-event-289001",
+    displayName: "0x7B2A...91E2",
+    profileImageUrl: "",
+    body: "The settlement source is clear, but the final hours could still be volatile.",
+    reactionCount: 18,
+    createdAt: "2026-06-18 09:42 UTC",
+    position: "YES 420.5",
+  },
+  {
+    commentId: "comment-81008",
+    eventId: "EVT-BTC-105K-0614",
+    venueEventId: "poly-event-289001",
+    displayName: "MacroLens",
+    profileImageUrl: "",
+    body: "Watching the Coinbase BTC/USD reference price and the exact cutoff time.",
+    reactionCount: 11,
+    createdAt: "2026-06-18 09:18 UTC",
+    position: "NO 188.0",
+  },
+  {
+    commentId: "comment-79910",
+    eventId: "EVT-ETH-4000-WEEK",
+    venueEventId: "poly-event-289114",
+    displayName: "ChainObserver",
+    profileImageUrl: "",
+    body: "Orderbook data looks stale right now. I would wait for the feed to recover.",
+    reactionCount: 7,
+    createdAt: "2026-06-18 08:51 UTC",
+    position: "--",
   },
 ]
 
@@ -332,6 +438,14 @@ const orders = [
     orderHash: "0x91e2...f4a0",
     txHash: "0x7a1...be22",
     quoteId: "Q-88721",
+    venueFeeRateBps: 10,
+    venueFeeAmount: "0.25",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "0.50",
+    totalFeeAmount: "0.75",
+    feeAsset: "USDC",
+    venueFeeSource: "venue_response",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712",
     createdAt: "10:21:03",
     updatedAt: "10:21:40",
@@ -357,6 +471,14 @@ const orders = [
     orderHash: "0x34c...9f10",
     txHash: "0xb21...0aa8",
     quoteId: "Q-88709",
+    venueFeeRateBps: 20,
+    venueFeeAmount: "1.60",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "1.60",
+    totalFeeAmount: "3.20",
+    feeAsset: "USDT",
+    venueFeeSource: "fill_calculation",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712",
     createdAt: "10:18:31",
     updatedAt: "10:20:09",
@@ -382,6 +504,14 @@ const orders = [
     orderHash: "--",
     txHash: "--",
     quoteId: "Q-88688",
+    venueFeeRateBps: 20,
+    venueFeeAmount: "0.00",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "0.00",
+    totalFeeAmount: "0.00",
+    feeAsset: "USDT",
+    venueFeeSource: "market_fee_config",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712 rejected by API",
     createdAt: "10:12:20",
     updatedAt: "10:12:39",
@@ -407,6 +537,14 @@ const orders = [
     orderHash: "0x871...22ab",
     txHash: "0xbsc...7122",
     quoteId: "Q-87122",
+    venueFeeRateBps: 20,
+    venueFeeAmount: "0.24",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "0.24",
+    totalFeeAmount: "0.48",
+    feeAsset: "USDT",
+    venueFeeSource: "venue_response",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712",
     createdAt: "09:42:11",
     updatedAt: "09:42:35",
@@ -432,6 +570,14 @@ const orders = [
     orderHash: "0x714...0f12",
     txHash: "0xpoly...7140",
     quoteId: "Q-87140",
+    venueFeeRateBps: 10,
+    venueFeeAmount: "0.30",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "0.60",
+    totalFeeAmount: "0.90",
+    feeAsset: "USDC",
+    venueFeeSource: "fill_calculation",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712",
     createdAt: "09:21:19",
     updatedAt: "09:23:02",
@@ -457,6 +603,14 @@ const orders = [
     orderHash: "0x871...55cd",
     txHash: "0xbsc...7155",
     quoteId: "Q-87155",
+    venueFeeRateBps: 20,
+    venueFeeAmount: "1.00",
+    problyBaseFeeBps: 20,
+    problyFeeAmount: "1.00",
+    totalFeeAmount: "2.00",
+    feeAsset: "USDT",
+    venueFeeSource: "venue_response",
+    feePlanVersion: "fee_v1",
     signature: "EIP-712",
     createdAt: "09:10:42",
     updatedAt: "09:11:06",
@@ -756,28 +910,28 @@ const instrumentRuleWeights = [
     name: "流动性",
     weight: 30,
     description: "用盘口深度和价差衡量用户是否能顺畅成交",
-    sourceFields: ["liquidityUsd", "depthUsdWithin2Pct", "bestBid", "bestAsk", "spreadBps", "orderbookUpdatedAt"],
-    scoreRule: "按可成交金额、2% 价差内深度、买卖价差和盘口更新时间打分。",
+    sourceFields: ["depthUsdWithin2Pct", "spreadBps", "orderbookUpdatedAt"],
+    scoreRule: "固定使用 2% 价差内深度、买卖价差和盘口更新时间；按顺序命中一个固定档位并返回精确分值。",
     scoreBands: [
-      "depthUsdWithin2Pct >= $1M 且 spreadBps <= 150：90-100 分",
-      "$300K <= depthUsdWithin2Pct < $1M 且 spreadBps <= 250：75-89 分",
-      "$100K <= depthUsdWithin2Pct < $300K：55-74 分",
-      "depthUsdWithin2Pct < $100K 或 spreadBps > 500：0-54 分",
-      "orderbookUpdatedAt 超过有效期：最高 40 分",
+      { id: "liq-high", label: "深度充足且价差小", condition: "depthUsdWithin2Pct >= $1,000,000 且 spreadBps <= 150", score: 95, inputs: [{ label: "最低深度", value: 1000000, unit: "USD" }, { label: "最大价差", value: 150, unit: "bps" }] },
+      { id: "liq-medium", label: "深度和价差良好", condition: "$300,000 <= depthUsdWithin2Pct < $1,000,000 且 spreadBps <= 250", score: 82, inputs: [{ label: "最低深度", value: 300000, unit: "USD" }, { label: "最大价差", value: 250, unit: "bps" }] },
+      { id: "liq-base", label: "达到基础流动性", condition: "$100,000 <= depthUsdWithin2Pct < $300,000", score: 65, inputs: [{ label: "最低深度", value: 100000, unit: "USD" }] },
+      { id: "liq-low", label: "深度不足或价差过大", condition: "depthUsdWithin2Pct < $100,000 或 spreadBps > 500", score: 35, inputs: [{ label: "深度红线", value: 100000, unit: "USD" }, { label: "价差红线", value: 500, unit: "bps" }] },
+      { id: "liq-stale", label: "盘口超过有效期", condition: "orderbookAgeSec > 60 或 orderbookUpdatedAt 缺失", score: 20, inputs: [{ label: "有效期", value: 60, unit: "秒" }] },
     ],
-    example: "$1.8M 且价差正常 = 100 分",
+    example: "2% 范围深度 $1.8M、价差 120 bps、盘口 8 秒前更新 = 95 分",
   },
   {
     name: "成交量/热度",
     weight: 20,
     description: "用成交、持仓和原平台热度衡量是否值得展示",
-    sourceFields: ["volume24hUsd", "tradeCount24h", "openInterestUsd", "venueHotRank", "watchlistCount"],
-    scoreRule: "按 24h 成交额、成交次数、open interest、原平台热门排序和收藏/关注数量打分。",
+    sourceFields: ["venueHotRank", "volume24hUsd", "tradeCount24h", "openInterestUsd", "lastTradeAt"],
+    scoreRule: "固定使用平台热度排名、24 小时成交额、成交次数和未平仓金额；未匹配高档时安全降级。",
     scoreBands: [
-      "venueHotRank <= 20 且 volume24hUsd >= $500K：90-100 分",
-      "volume24hUsd >= $100K 或 tradeCount24h >= 100：70-89 分",
-      "volume24hUsd >= $20K 或 tradeCount24h >= 20：45-69 分",
-      "长期无成交或 openInterestUsd 极低：0-44 分",
+      { id: "heat-high", label: "平台热门且成交活跃", condition: "venueHotRank <= 20 且 volume24hUsd >= $500,000", score: 95, inputs: [{ label: "最高排名", value: 20, unit: "名" }, { label: "最低成交额", value: 500000, unit: "USD" }] },
+      { id: "heat-medium", label: "成交活跃", condition: "volume24hUsd >= $100,000 或 tradeCount24h >= 100", score: 80, inputs: [{ label: "最低成交额", value: 100000, unit: "USD" }, { label: "最低成交次数", value: 100, unit: "笔" }] },
+      { id: "heat-base", label: "达到基础热度", condition: "volume24hUsd >= $20,000 或 tradeCount24h >= 20", score: 60, inputs: [{ label: "最低成交额", value: 20000, unit: "USD" }, { label: "最低成交次数", value: 20, unit: "笔" }] },
+      { id: "heat-low", label: "长期无成交或持仓过低", condition: "连续 7 天无成交或 openInterestUsd < $10,000", score: 30, inputs: [{ label: "无成交天数", value: 7, unit: "天" }, { label: "持仓红线", value: 10000, unit: "USD" }] },
     ],
     example: "热门榜 Top 10 + 高频成交 = 95 分",
   },
@@ -788,10 +942,10 @@ const instrumentRuleWeights = [
     sourceFields: ["hasResolutionSource", "hasResolutionRule", "hasEndTime", "hasOutcomeMapping", "ruleParseStatus", "descriptionCompleteness"],
     scoreRule: "按结算来源、结算规则、到期时间、选项映射和规则解析状态打分。",
     scoreBands: [
-      "结算来源、规则、到期时间、选项映射全部完整且 ruleParseStatus=clear：90-100 分",
-      "缺少 1 个非关键字段或描述较弱：70-89 分",
-      "缺少结算规则入口或解析结果为 ambiguous：40-69 分",
-      "结算来源缺失、描述无法解析、结果定义冲突：0-39 分，并可被强制规则拦截",
+      { id: "clarity-clear", label: "核心字段完整且解析清晰", condition: "核心字段完整且 ruleParseStatus=clear", score: 100, inputs: [] },
+      { id: "clarity-weak", label: "仅一个非关键字段较弱", condition: "核心字段完整，且仅 1 个非关键字段缺失或 descriptionCompleteness < 80", score: 75, inputs: [{ label: "描述完整度", value: 80, unit: "%" }] },
+      { id: "clarity-ambiguous", label: "规则存在歧义", condition: "缺少规则入口、多个非关键字段缺失或 ruleParseStatus=ambiguous", score: 45, inputs: [] },
+      { id: "clarity-invalid", label: "关键规则不可用", condition: "结算来源缺失、ruleParseStatus=failed 或 outcomeMappingConflict=true", score: 0, inputs: [] },
     ],
     example: "有结算规则链接和明确数据源 = 92 分",
   },
@@ -802,10 +956,10 @@ const instrumentRuleWeights = [
     sourceFields: ["endTime", "hoursToClose", "settlementWindowHours", "isTradingClosed"],
     scoreRule: "按距离停止交易/结算时间、结算窗口长度和交易关闭状态打分。",
     scoreBands: [
-      "6 小时 <= hoursToClose <= 30 天：90-100 分",
-      "2 小时 <= hoursToClose < 6 小时：60-79 分",
-      "30 天 < hoursToClose <= 90 天：55-75 分",
-      "hoursToClose < 2 小时、已停止交易或无明确 endTime：0-50 分",
+      { id: "expiry-normal", label: "适合交易", condition: "6 小时 <= hoursToClose <= 30 天", score: 95, inputs: [{ label: "最短时间", value: 6, unit: "小时" }, { label: "最长时间", value: 30, unit: "天" }] },
+      { id: "expiry-near", label: "临近停止交易", condition: "2 小时 <= hoursToClose < 6 小时", score: 70, inputs: [{ label: "最短时间", value: 2, unit: "小时" }, { label: "最长时间", value: 6, unit: "小时" }] },
+      { id: "expiry-far", label: "到期较远", condition: "30 天 < hoursToClose <= 90 天", score: 65, inputs: [{ label: "起始时间", value: 30, unit: "天" }, { label: "最长时间", value: 90, unit: "天" }] },
+      { id: "expiry-invalid", label: "不适合准入", condition: "hoursToClose < 2 小时、> 90 天、已停止交易或 endTime 缺失", score: 20, inputs: [{ label: "临近红线", value: 2, unit: "小时" }, { label: "过远红线", value: 90, unit: "天" }] },
     ],
     example: "3 天后到期 = 95 分",
   },
@@ -816,67 +970,209 @@ const instrumentRuleWeights = [
     sourceFields: ["orderbookStatus", "quoteAvailable", "canPlaceOrder", "canCancelOrder", "canQueryOrder", "canQueryPosition", "authStatus", "chainSupported", "collateralSupported"],
     scoreRule: "按盘口、Quote、下单、撤单、订单查询、持仓查询、认证、链和资产支持状态打分。",
     scoreBands: [
-      "全部交易能力可用，authStatus=valid：95-100 分",
-      "非核心查询能力降级但下单/撤单可用：70-94 分",
-      "Quote 或订单状态查询不稳定：40-69 分",
-      "下单接口不可用、认证失败、链或资产不支持：0-39 分",
+      { id: "api-full", label: "全部能力可用", condition: "核心和辅助能力均可用且 authStatus=valid", score: 100, inputs: [] },
+      { id: "api-core", label: "核心交易能力可用", condition: "盘口、Quote、下单、撤单可用，仅辅助查询降级", score: 80, inputs: [] },
+      { id: "api-unstable", label: "关键查询不稳定", condition: "Quote 或订单状态查询不稳定，适配器未完全中断", score: 50, inputs: [] },
+      { id: "api-unavailable", label: "不可交易", condition: "下单不可用、认证失败、链/资产不支持或核心盘口缺失", score: 0, inputs: [] },
     ],
     example: "CLOB 与订单查询正常 = 100 分",
   },
 ]
 
 const instrumentFilterRules = [
-  { id: "IFR-001", rule: "敏感关键词", condition: "标题/描述/标签/分类/结算规则命中：election, president, sanction", action: "进入人工审核", status: "启用" },
-  { id: "IFR-003", rule: "到期时间过近", condition: "到期时间早于 2026-06-11T12:00", action: "直接过滤", status: "启用" },
-  { id: "IFR-004", rule: "受限分类", condition: "分类命中：政治, 战争, 制裁", action: "进入人工审核", status: "启用" },
-  { id: "IFR-005", rule: "规则不清晰", condition: "结算来源缺失或描述无法解析", action: "进入人工审核", status: "启用" },
+  { id: "sensitive_keyword", rule: "敏感关键词", condition: "标题/描述/标签/结算规则命中：election, sanction, war", action: "进入人工审核", status: "启用" },
+  { id: "expiry_redline", rule: "到期时间红线", condition: "hoursToClose < 0.5 或 hoursToClose > 8760 或已停止交易", action: "直接过滤", status: "启用" },
+  { id: "unclear_rule", rule: "规则不清晰红线", condition: "结算来源缺失、规则解析失败或选项映射冲突", action: "进入人工审核", status: "启用" },
+  { id: "restricted_category", rule: "分类限制", condition: "category 命中：政治, 战争, 制裁", action: "进入人工审核", status: "启用" },
 ]
 
 const instrumentRulePreview = [
-  { title: "Bitcoin above 105K on Jun 14?", venue: "Polymarket", score: 91, decision: "进入可交易标的", reason: "流动性 100 / 热度 95 / 规则 92 / API 100", next: "进入智能推荐候选池" },
-  { title: "BTC higher than 105K by Friday?", venue: "Predict.fun", score: 86, decision: "进入可交易标的", reason: "热度高，但流动性低于 Polymarket", next: "进入智能推荐候选池" },
-  { title: "US CPI lower than forecast?", venue: "Predict.fun", score: 68, decision: "人工审核", reason: "流动性偏低，结算口径需要确认", next: "审核通过后才进入可交易标的" },
-  { title: "Regional election outcome?", venue: "Polymarket", score: 54, decision: "人工审核", reason: "标题/描述命中敏感关键词", next: "审核通过后才进入可交易标的" },
+  { title: "Bitcoin above 105K on Jun 14?", venue: "Polymarket", score: 97, decision: "进入可交易标的", reason: "流动性 95 / 热度 95 / 规则 100 / 到期 95 / API 100", next: "进入智能推荐候选池" },
+  { title: "BTC higher than 105K by Friday?", venue: "Predict.fun", score: 86, decision: "进入可交易标的", reason: "流动性 82 / 热度 80 / 规则 100 / 到期 95 / API 80", next: "进入智能推荐候选池" },
+  { title: "US CPI lower than forecast?", venue: "Predict.fun", score: 68, decision: "人工审核", reason: "流动性 35 / 热度 60 / 规则 75 / 到期 95 / API 80", next: "审核通过后才进入可交易标的" },
+  { title: "Regional election outcome?", venue: "Polymarket", score: 54, decision: "人工审核", reason: "命中敏感关键词强制人工审核规则", next: "审核通过后才进入可交易标的" },
 ]
 
 const admissionCandidates = [
   {
     id: "ADM-1024",
-    rawMarketId: "RAW-PRED-77201",
+    candidateInstrumentId: "CAND-PRED-77311-YES",
+    rawMarketId: "RAW-PRED-77311",
+    eventId: "EVT-US-UNEMPLOYMENT-BELOW-4",
+    venueEventId: "predict-event-77311",
+    venueMarketId: "predict-77311",
+    outcomeId: "YES",
+    optionName: "YES",
+    eventName: "US unemployment below 4% in July?",
     venue: "Predict.fun",
     source: "Markets",
-    title: "US CPI lower than forecast?",
+    chain: "BNB Chain",
+    asset: "USDT",
+    title: "US unemployment below 4% in July?",
     score: 68,
     status: "待审核",
+    triggerType: "推荐分区间",
     trigger: "推荐分处于人工审核区间",
+    forceRuleHits: "未命中",
+    matchedField: "--",
+    matchedValue: "--",
     reason: "流动性偏低，结算口径需要确认",
     liquidityUsd: "$76K",
     volume24hUsd: "$18K",
     endTime: "2026-06-16 12:30 UTC",
+    settlementRule: "以美国劳工统计局公布的 2026 年 7 月失业率为准",
     ruleParseStatus: "ambiguous",
     sensitiveHit: "未命中",
     apiTradable: "Quote 可用 / 下单可用 / 持仓查询可用",
     sourceFields: "liquidityUsd, volume24hUsd, resolutionRuleText, ruleParseStatus, canPlaceOrder",
     nextAction: "通过后生成 TradeableInstrument；拒绝后不进入本平台",
+    ruleVersion: "instrument_rule_v1.5",
+    dataFingerprint: "sha256:pred77311-a91c",
+    queuedAt: "2026-06-18 09:12 UTC",
+    dueAt: "2026-06-18 21:12 UTC",
+    slaStatus: "正常",
+    reviewer: "--",
+    reviewedAt: "--",
+    reviewNote: "--",
+    admissionResult: "pending_review",
+    generatedInstrumentId: "--",
+    smartRecommendCandidate: "否",
+    previousReviewId: "--",
   },
   {
     id: "ADM-1025",
+    candidateInstrumentId: "CAND-POLY-91991-YES",
     rawMarketId: "RAW-POLY-91991",
+    eventId: "EVT-REGIONAL-ELECTION",
+    venueEventId: "poly-event-91991",
+    venueMarketId: "poly-market-91991",
+    outcomeId: "0x91...YES",
+    optionName: "YES",
+    eventName: "Regional election outcome?",
     venue: "Polymarket",
     source: "Gamma",
+    chain: "Polygon",
+    asset: "USDC",
     title: "Regional election outcome?",
     score: 54,
     status: "待审核",
+    triggerType: "强制规则",
     trigger: "命中敏感关键词强制人工审核",
+    forceRuleHits: "IFR-001 敏感关键词",
+    matchedField: "rawTitle",
+    matchedValue: "election",
     reason: "标题/描述命中 sensitiveKeywords：election",
     liquidityUsd: "$640K",
     volume24hUsd: "$92K",
     endTime: "2026-07-08 23:59 UTC",
+    settlementRule: "以底层平台指定的官方选举结果来源为准",
     ruleParseStatus: "clear",
     sensitiveHit: "election",
     apiTradable: "Quote 可用 / CLOB 可下单 / 持仓查询可用",
     sourceFields: "rawTitle, description, tags, category, resolutionRuleText",
     nextAction: "需运营判断是否符合平台准入政策",
+    ruleVersion: "instrument_rule_v1.5",
+    dataFingerprint: "sha256:poly91991-7be2",
+    queuedAt: "2026-06-18 08:45 UTC",
+    dueAt: "2026-06-18 20:45 UTC",
+    slaStatus: "即将超时",
+    reviewer: "--",
+    reviewedAt: "--",
+    reviewNote: "--",
+    admissionResult: "pending_review",
+    generatedInstrumentId: "--",
+    smartRecommendCandidate: "否",
+    previousReviewId: "--",
+  },
+  {
+    id: "ADM-1018",
+    candidateInstrumentId: "CAND-POLY-88710-YES",
+    rawMarketId: "RAW-POLY-88710",
+    eventId: "EVT-ECB-RATE-JULY",
+    venueEventId: "poly-event-88710",
+    venueMarketId: "poly-market-88710",
+    outcomeId: "0x88...YES",
+    optionName: "YES",
+    eventName: "ECB cuts rates in July?",
+    venue: "Polymarket",
+    source: "Gamma / CLOB",
+    chain: "Polygon",
+    asset: "USDC",
+    title: "ECB cuts rates in July?",
+    score: 76,
+    status: "已通过",
+    triggerType: "推荐分区间",
+    trigger: "推荐分处于人工审核区间",
+    forceRuleHits: "未命中",
+    matchedField: "--",
+    matchedValue: "--",
+    reason: "结算规则清晰，流动性达到最低准入要求",
+    liquidityUsd: "$380K",
+    volume24hUsd: "$106K",
+    endTime: "2026-07-24 12:00 UTC",
+    settlementRule: "以 ECB 官方利率决议为准",
+    ruleParseStatus: "clear",
+    sensitiveHit: "未命中",
+    apiTradable: "Quote、下单、撤单和持仓查询可用",
+    sourceFields: "liquidityUsd, volume24hUsd, resolutionSource, endTime, canPlaceOrder",
+    nextAction: "已生成可交易标的",
+    ruleVersion: "instrument_rule_v1.5",
+    dataFingerprint: "sha256:poly88710-c234",
+    queuedAt: "2026-06-17 15:20 UTC",
+    dueAt: "2026-06-18 03:20 UTC",
+    slaStatus: "已完成",
+    reviewer: "运营-陈晨",
+    reviewedAt: "2026-06-17 16:04 UTC",
+    reviewNote: "结算来源明确，盘口和交易接口均可用，同意准入。",
+    admissionResult: "admitted",
+    generatedInstrumentId: "INS-2210",
+    smartRecommendCandidate: "否，推荐分未达到 85",
+    previousReviewId: "--",
+  },
+  {
+    id: "ADM-1016",
+    candidateInstrumentId: "CAND-PRED-66109-YES",
+    rawMarketId: "RAW-PRED-66109",
+    eventId: "EVT-CELEBRITY-RUMOR",
+    venueEventId: "predict-event-66109",
+    venueMarketId: "predict-66109",
+    outcomeId: "YES",
+    optionName: "YES",
+    eventName: "Celebrity rumor confirmed this week?",
+    venue: "Predict.fun",
+    source: "Markets",
+    chain: "BNB Chain",
+    asset: "USDT",
+    title: "Celebrity rumor confirmed this week?",
+    score: 73,
+    status: "已拒绝",
+    triggerType: "强制规则",
+    trigger: "命中敏感关键词强制人工审核",
+    forceRuleHits: "IFR-006 未证实信息",
+    matchedField: "description",
+    matchedValue: "unconfirmed rumor",
+    reason: "结算依据不可验证，存在争议风险",
+    liquidityUsd: "$210K",
+    volume24hUsd: "$38K",
+    endTime: "2026-06-22 23:59 UTC",
+    settlementRule: "描述仅引用公开传闻，缺少权威结算来源",
+    ruleParseStatus: "ambiguous",
+    sensitiveHit: "unconfirmed rumor",
+    apiTradable: "Quote 和下单可用",
+    sourceFields: "description, resolutionRuleText, hasResolutionSource, ruleParseStatus",
+    nextAction: "已按人工审核拒绝强制过滤",
+    ruleVersion: "instrument_rule_v1.5",
+    dataFingerprint: "sha256:pred66109-212f",
+    queuedAt: "2026-06-17 10:42 UTC",
+    dueAt: "2026-06-17 22:42 UTC",
+    slaStatus: "已完成",
+    reviewer: "运营-李明",
+    reviewedAt: "2026-06-17 11:15 UTC",
+    reviewNote: "缺少可核验的结算来源，拒绝准入并保留过滤记录。",
+    admissionResult: "filtered_by_review",
+    generatedInstrumentId: "--",
+    smartRecommendCandidate: "否",
+    previousReviewId: "ADM-0992",
   },
 ]
 
@@ -964,6 +1260,7 @@ type InstrumentScoringRule = (typeof instrumentRuleWeights)[number]
 type InstrumentFilterRule = (typeof instrumentFilterRules)[number]
 type GroupScoringRule = (typeof groupRuleWeights)[number]
 type AdmissionCandidate = (typeof admissionCandidates)[number]
+type Instrument = (typeof instruments)[number]
 type DetailView = "api" | "batchSync" | "instrument" | "instrumentScoreRule" | "instrumentRuleCreate" | "instrumentForceRuleView" | "admissionReview" | "groupScoreRule" | "group" | "autoOrder" | "order" | "settlement" | "auth" | "risk"
 type RawMarketRow = (typeof rawMarketRows)[number]
 
@@ -1351,35 +1648,43 @@ function InstrumentFilterRuleForm({
   initialRule?: InstrumentFilterRule
   readonly?: boolean
 }) {
-  const [ruleName, setRuleName] = useState(initialRule?.rule ?? "高风险关键词组合")
+  const [ruleName] = useState(initialRule?.rule ?? "敏感关键词")
   const [action, setAction] = useState(initialRule?.action ?? "进入人工审核")
-  const [keywordEnabled, setKeywordEnabled] = useState(initialRule?.condition.includes("命中") ?? true)
-  const [keywords, setKeywords] = useState(initialRule?.condition.match(/命中：([^；]+)/)?.[1] ?? "election, sanction, president")
-  const [categoryEnabled, setCategoryEnabled] = useState(false)
-  const [categories, setCategories] = useState("政治, 战争, 制裁")
-  const [expiryEnabled, setExpiryEnabled] = useState(initialRule?.condition.includes("到期时间") ?? false)
-  const [earliestEnd, setEarliestEnd] = useState(initialRule?.condition.match(/早于 ([^；]+)/)?.[1] ?? "2026-06-11T12:00")
-  const [latestEnd, setLatestEnd] = useState("")
-  const [unclearRuleEnabled, setUnclearRuleEnabled] = useState(initialRule?.condition.includes("结算来源缺失") ?? false)
-  const enabledCount = [keywordEnabled, categoryEnabled, expiryEnabled, unclearRuleEnabled].filter(Boolean).length
-  const conditions = [
-    keywordEnabled ? `标题/描述/标签/分类/结算规则命中：${keywords || "未填写"}` : "",
-    categoryEnabled ? `分类命中：${categories || "未填写"}` : "",
-    expiryEnabled ? `到期时间${earliestEnd ? `早于 ${earliestEnd}` : ""}${earliestEnd && latestEnd ? " 或 " : ""}${latestEnd ? `晚于 ${latestEnd}` : ""}` : "",
-    unclearRuleEnabled ? "结算来源缺失或描述无法解析" : "",
-  ].filter(Boolean)
+  const [status, setStatus] = useState(initialRule?.status ?? "启用")
+  const ruleId = initialRule?.id ?? "sensitive_keyword"
+  const [keywords, setKeywords] = useState(initialRule?.condition.split("命中：")[1] ?? "election, sanction, war")
+  const [keywordFields, setKeywordFields] = useState(["标题", "描述", "标签", "结算规则"])
+  const [minimumHours, setMinimumHours] = useState(Number(initialRule?.condition.match(/< ([\d.]+)/)?.[1] ?? 0.5))
+  const [maximumDays, setMaximumDays] = useState(Number(initialRule?.condition.match(/> ([\d.]+)/)?.[1] ?? 8760) / 24)
+  const [filterClosed, setFilterClosed] = useState(initialRule?.condition.includes("已停止交易") ?? true)
+  const [unclearChecks, setUnclearChecks] = useState({
+    missingSource: initialRule?.condition.includes("结算来源缺失") ?? true,
+    parseFailed: initialRule?.condition.includes("规则解析失败") ?? true,
+    outcomeConflict: initialRule?.condition.includes("选项映射冲突") ?? true,
+  })
+  const [categories, setCategories] = useState(initialRule?.condition.split("命中：")[1] ?? "政治, 战争, 制裁")
+  const selectedUnclearCount = Object.values(unclearChecks).filter(Boolean).length
+  const expiryValid = minimumHours >= 0 && maximumDays > 0 && minimumHours < maximumDays * 24
+  const formValid = ruleId === "sensitive_keyword" ? keywords.trim().length > 0 && keywordFields.length > 0
+    : ruleId === "expiry_redline" ? expiryValid
+    : ruleId === "unclear_rule" ? selectedUnclearCount > 0
+    : categories.trim().length > 0
+  const condition = ruleId === "sensitive_keyword"
+    ? `${keywordFields.join("/")}命中：${keywords.trim()}`
+    : ruleId === "expiry_redline"
+      ? `hoursToClose < ${minimumHours} 或 hoursToClose > ${maximumDays * 24}${filterClosed ? " 或已停止交易" : ""}`
+      : ruleId === "unclear_rule"
+        ? [unclearChecks.missingSource ? "结算来源缺失" : "", unclearChecks.parseFailed ? "规则解析失败" : "", unclearChecks.outcomeConflict ? "选项映射冲突" : ""].filter(Boolean).join("、")
+        : `category 命中：${categories.trim()}`
 
   return (
-    <Panel title="新增强制过滤规则">
+    <Panel title={`${readonly ? "查看" : "编辑"}${ruleName}规则`}>
       <div className="space-y-4">
         <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
-          强制规则先于推荐分执行。一次新增可以勾选多个条件，多个条件默认按“任一命中即触发”处理；需要组合成“全部命中才触发”时，可在正式 PRD 的高级规则里扩展。
+          这是系统固定规则类型，只能启用、停用和编辑参数，不能新增或删除。直接过滤优先于强制人工审核，强制人工审核优先于推荐分分流。
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1 text-sm">
-            <span className="text-xs text-muted-foreground">规则名称</span>
-            <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={ruleName} onChange={(event) => setRuleName(event.target.value)} />
-          </label>
+          <Info label="固定规则类型" value={ruleName} />
           <label className="space-y-1 text-sm">
             <span className="text-xs text-muted-foreground">处理动作</span>
             <select disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={action} onChange={(event) => setAction(event.target.value)}>
@@ -1388,83 +1693,81 @@ function InstrumentFilterRuleForm({
             </select>
           </label>
         </div>
-
-        <div className="grid gap-3 xl:grid-cols-2">
-          <div className="rounded-lg border bg-white p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input disabled={readonly} type="checkbox" checked={keywordEnabled} onChange={(event) => setKeywordEnabled(event.target.checked)} />
-              启用敏感关键词过滤
-            </label>
-            {keywordEnabled && (
-              <label className="mt-3 block space-y-1 text-sm">
-                <span className="text-xs text-muted-foreground">命中字段：标题、描述、标签、分类、结算规则文本。多个关键词用逗号隔开</span>
-                <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={keywords} onChange={(event) => setKeywords(event.target.value)} />
-              </label>
-            )}
-          </div>
-
-          <div className="rounded-lg border bg-white p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input disabled={readonly} type="checkbox" checked={categoryEnabled} onChange={(event) => setCategoryEnabled(event.target.checked)} />
-              启用分类过滤
-            </label>
-            {categoryEnabled && (
-              <label className="mt-3 block space-y-1 text-sm">
-                <span className="text-xs text-muted-foreground">需要过滤或复核的分类，多个用逗号隔开</span>
-                <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={categories} onChange={(event) => setCategories(event.target.value)} />
-              </label>
-            )}
-          </div>
-
-          <div className="rounded-lg border bg-white p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input disabled={readonly} type="checkbox" checked={expiryEnabled} onChange={(event) => setExpiryEnabled(event.target.checked)} />
-              启用到期时间过滤
-            </label>
-            {expiryEnabled && (
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-sm">
-                  <span className="text-xs text-muted-foreground">到期早于该时间</span>
-                  <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" type="datetime-local" value={earliestEnd} onChange={(event) => setEarliestEnd(event.target.value)} />
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span className="text-xs text-muted-foreground">到期晚于该时间，可为空</span>
-                  <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" type="datetime-local" value={latestEnd} onChange={(event) => setLatestEnd(event.target.value)} />
-                </label>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-lg border bg-white p-4 xl:col-span-2">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input disabled={readonly} type="checkbox" checked={unclearRuleEnabled} onChange={(event) => setUnclearRuleEnabled(event.target.checked)} />
-              启用规则不清晰过滤
-            </label>
-            {unclearRuleEnabled && (
-              <div className="mt-3 rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
-                无需额外填写。命中条件固定为：结算来源缺失、结算描述无法解析、结果定义存在明显歧义。
-              </div>
-            )}
-          </div>
+        <div className="rounded-lg border bg-white p-4">
+          <label className="flex items-center gap-3 text-sm font-semibold">
+            <input disabled={readonly} type="checkbox" checked={status === "启用"} onChange={(event) => setStatus(event.target.checked ? "启用" : "停用")} />
+            启用{ruleName}规则
+          </label>
         </div>
 
+        {ruleId === "sensitive_keyword" && <div className="rounded-lg border bg-white p-4">
+          <div className="text-sm font-semibold">敏感关键词配置</div>
+          <div className="mt-3 text-xs text-muted-foreground">选择需要检查的文本字段。任一字段命中任一关键词即触发，多个关键词使用逗号分隔。</div>
+          <div className="mt-3 flex flex-wrap gap-4">
+            {["标题", "描述", "标签", "分类", "结算规则"].map((field) => <label key={field} className="flex items-center gap-2 text-sm">
+              <input disabled={readonly} type="checkbox" checked={keywordFields.includes(field)} onChange={(event) => setKeywordFields((current) => event.target.checked ? [...current, field] : current.filter((item) => item !== field))} />
+              {field}
+            </label>)}
+          </div>
+          <label className="mt-4 block space-y-1 text-sm">
+            <span className="text-xs text-muted-foreground">敏感关键词（多个用逗号隔开）</span>
+            <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="例如：election, sanction, war" />
+          </label>
+          {!keywords.trim() && <div className="mt-2 text-xs text-red-600">请至少填写一个敏感关键词。</div>}
+          {keywordFields.length === 0 && <div className="mt-2 text-xs text-red-600">请至少选择一个命中字段。</div>}
+        </div>}
+
+        {ruleId === "expiry_redline" && <div className="rounded-lg border bg-white p-4">
+          <div className="text-sm font-semibold">到期时间红线配置</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span className="text-xs text-muted-foreground">距离停止交易少于</span>
+              <div className="flex"><input disabled={readonly} type="number" min="0" step="0.5" className="h-10 min-w-0 flex-1 rounded-l-md border px-3 disabled:bg-zinc-50" value={minimumHours} onChange={(event) => setMinimumHours(Number(event.target.value))} /><span className="flex items-center rounded-r-md border border-l-0 bg-zinc-50 px-3 text-xs">小时</span></div>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-xs text-muted-foreground">距离停止交易超过</span>
+              <div className="flex"><input disabled={readonly} type="number" min="1" step="1" className="h-10 min-w-0 flex-1 rounded-l-md border px-3 disabled:bg-zinc-50" value={maximumDays} onChange={(event) => setMaximumDays(Number(event.target.value))} /><span className="flex items-center rounded-r-md border border-l-0 bg-zinc-50 px-3 text-xs">天</span></div>
+            </label>
+          </div>
+          <label className="mt-4 flex items-center gap-2 text-sm"><input disabled={readonly} type="checkbox" checked={filterClosed} onChange={(event) => setFilterClosed(event.target.checked)} />已停止交易时触发</label>
+          {!expiryValid && <div className="mt-2 text-xs text-red-600">最短期限必须小于最长期限，且两个值均不能为负数。</div>}
+        </div>}
+
+        {ruleId === "unclear_rule" && <div className="rounded-lg border bg-white p-4">
+          <div className="text-sm font-semibold">严重规则异常配置</div>
+          <div className="mt-2 text-xs text-muted-foreground">普通描述不完整由规则清晰度评分处理；这里只配置必须过滤或人工审核的严重异常。</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {[["missingSource", "结算来源缺失"], ["parseFailed", "规则解析失败"], ["outcomeConflict", "选项映射冲突"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border p-3 text-sm">
+              <input disabled={readonly} type="checkbox" checked={unclearChecks[key as keyof typeof unclearChecks]} onChange={(event) => setUnclearChecks((current) => ({ ...current, [key]: event.target.checked }))} />{label}
+            </label>)}
+          </div>
+          {selectedUnclearCount === 0 && <div className="mt-2 text-xs text-red-600">请至少选择一种严重异常。</div>}
+        </div>}
+
+        {ruleId === "restricted_category" && <div className="rounded-lg border bg-white p-4">
+          <div className="text-sm font-semibold">受限分类配置</div>
+          <label className="mt-3 block space-y-1 text-sm">
+            <span className="text-xs text-muted-foreground">需要过滤或人工审核的分类（多个用逗号隔开）</span>
+            <input disabled={readonly} className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50" value={categories} onChange={(event) => setCategories(event.target.value)} placeholder="例如：政治, 战争, 制裁" />
+          </label>
+          {!categories.trim() && <div className="mt-2 text-xs text-red-600">请至少填写一个受限分类。</div>}
+        </div>}
+
+        <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground"><span className="font-medium text-zinc-900">规则预览：</span>{condition || "尚未完成配置"}</div>
         <div className="grid gap-3 md:grid-cols-3">
-          <Info label="已启用条件" value={`${enabledCount} 项`} />
+          <Info label="规则 ID" value={initialRule?.id ?? "固定类型"} />
           <Info label="保存后状态" value="加入草稿规则，需试算后保存版本" />
-          <Info label="审计要求" value="记录操作人、启用条件、填写值和影响范围" />
-        </div>
-        <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
-          当前规则预览：{conditions.length ? conditions.join("；") : "尚未启用任何条件"}
+          <Info label="审计要求" value="记录操作人、参数前后值和影响范围" />
         </div>
         {!readonly && (
           <Button
             size="sm"
-            disabled={enabledCount === 0}
+            disabled={!formValid}
             onClick={() => {
-              onCreate({ id: initialRule?.id ?? `IFR-${Date.now().toString().slice(-4)}`, rule: ruleName, condition: conditions.join("；"), action, status: "启用" })
+              onCreate({ id: initialRule?.id ?? "sensitive_keyword", rule: ruleName, condition: condition.trim(), action, status })
             }}
           >
-            {initialRule ? "保存修改" : "保存并加入规则列表"}
+            保存到规则草稿
           </Button>
         )}
       </div>
@@ -1494,14 +1797,7 @@ function InstrumentScoreRuleEditor({
             ))}
           </div>
         </div>
-        <label className="block space-y-1 text-sm">
-          <span className="text-xs text-muted-foreground">字段来源，可用逗号增减字段</span>
-          <input
-            className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900"
-            value={draft.sourceFields.join(", ")}
-            onChange={(event) => setDraft({ ...draft, sourceFields: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })}
-          />
-        </label>
+        <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">参与字段和档位数量由系统固定，管理员只可调整量化阈值和每档精确分值。</div>
         <label className="block space-y-1 text-sm">
           <span className="text-xs text-muted-foreground">评分逻辑说明</span>
           <textarea
@@ -1511,30 +1807,37 @@ function InstrumentScoreRuleEditor({
           />
         </label>
         <div className="space-y-2">
-          <div className="text-sm font-semibold">评分区间配置</div>
+          <div className="text-sm font-semibold">固定评分档位配置</div>
           {draft.scoreBands.map((band, index) => (
-            <div key={`${draft.name}-${index}`} className="flex gap-2">
-              <input
-                className="h-10 min-w-0 flex-1 rounded-md border px-3 text-sm outline-none focus:border-zinc-900"
-                value={band}
-                onChange={(event) => {
-                  const nextBands = [...draft.scoreBands]
-                  nextBands[index] = event.target.value
-                  setDraft({ ...draft, scoreBands: nextBands })
-                }}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setDraft({ ...draft, scoreBands: draft.scoreBands.filter((_, bandIndex) => bandIndex !== index) })}
-              >
-                删除
-              </Button>
+            <div key={band.id} className="rounded-lg border bg-white p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">第 {index + 1} 档 · {band.label}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{band.condition}</div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-xs text-muted-foreground">精确分值</span>
+                  <input className="h-9 w-20 rounded-md border px-2" type="number" min="0" max="100" value={band.score} onChange={(event) => {
+                    const nextBands = [...draft.scoreBands]
+                    nextBands[index] = { ...band, score: Number(event.target.value) }
+                    setDraft({ ...draft, scoreBands: nextBands })
+                  }} />
+                </label>
+              </div>
+              {band.inputs.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {band.inputs.map((input, inputIndex) => <label key={`${band.id}-${input.label}`} className="space-y-1 text-sm">
+                  <span className="text-xs text-muted-foreground">{input.label}（{input.unit}）</span>
+                  <input className="h-9 w-full rounded-md border px-2" type="number" min="0" value={input.value} onChange={(event) => {
+                    const nextBands = [...draft.scoreBands]
+                    const nextInputs = [...band.inputs]
+                    nextInputs[inputIndex] = { ...input, value: Number(event.target.value) }
+                    nextBands[index] = { ...band, inputs: nextInputs }
+                    setDraft({ ...draft, scoreBands: nextBands })
+                  }} />
+                </label>)}
+              </div>}
             </div>
           ))}
-          <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, scoreBands: [...draft.scoreBands, "新增条件：分值区间"] })}>
-            新增区间
-          </Button>
         </div>
         <label className="block space-y-1 text-sm">
           <span className="text-xs text-muted-foreground">评分示例</span>
@@ -1639,6 +1942,13 @@ function orderStatusText(status: string) {
   if (status === "failed") return "失败"
   if (status === "open") return "委托中"
   return status
+}
+
+function feeSourceText(source: string) {
+  if (source === "venue_response") return "底层成交回执"
+  if (source === "fill_calculation") return "按成交金额计算"
+  if (source === "market_fee_config") return "底层市场费率配置"
+  return source
 }
 
 function settlementStatusText(status: string) {
@@ -2130,53 +2440,73 @@ function BatchSyncDetail({
   )
 }
 
-function AdmissionReviewDetail({ item }: { item: AdmissionCandidate }) {
-  const [decision, setDecision] = useState("pending")
+function AdmissionReviewDetail({
+  item,
+  onReview,
+  onReopen,
+}: {
+  item: AdmissionCandidate
+  onReview: (reviewId: string, action: "approve" | "reject", note: string) => void
+  onReopen: (reviewId: string) => void
+}) {
   const [note, setNote] = useState("")
-  const canSubmit = note.trim().length >= 6
+  const isPending = item.status === "待审核"
 
   return (
     <Panel
-      title="标的准入审核详情"
+      title={isPending ? "标的审核详情" : "标的审核记录详情"}
       action={
         <div className="flex flex-wrap gap-2">
-          <ReviewResult value={decision} />
-          <Button
-            size="sm"
-            disabled={!canSubmit}
-            onClick={() => setDecision("approved")}
-          >
-            通过准入
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canSubmit}
-            onClick={() => setDecision("rejected")}
-          >
-            拒绝准入
-          </Button>
+          <Badge tone={item.status === "待审核" ? "amber" : item.status === "已通过" ? "green" : "red"}>{item.status}</Badge>
+          {!isPending && item.status === "已拒绝" && (
+            <Button size="sm" variant="outline" onClick={() => onReopen(item.id)}>重新打开审核</Button>
+          )}
         </div>
       }
     >
       <div className="space-y-5">
-        {decision !== "pending" && (
-          <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-            {decision === "approved"
-              ? `${item.id} 已通过准入。后端将按当前规则版本生成 TradeableInstrument，并进入可交易标的列表。`
-              : `${item.id} 已拒绝准入。该原平台市场不会进入本平台可交易标的，原因会写入审计日志。`}
+        {isPending && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+              <label className="min-w-0 flex-1 text-sm font-medium">
+                审核说明 <span className="font-normal text-muted-foreground">（选填）</span>
+                <textarea
+                  className="mt-2 min-h-20 w-full rounded-md border bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                  placeholder="可填写通过或拒绝的补充说明；不填写也可以提交。"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+              </label>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button size="sm" onClick={() => onReview(item.id, "approve", note)}>通过审核</Button>
+                <Button size="sm" variant="outline" onClick={() => onReview(item.id, "reject", note)}>拒绝审核</Button>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-sky-800">无论是否填写说明，系统都会记录审核人、时间、结论、规则版本和数据指纹。</div>
           </div>
         )}
         <FieldGrid
           items={[
             ["审核单号", item.id],
+            ["Probly 候选标的 ID", item.candidateInstrumentId],
             ["原始市场 ID", item.rawMarketId],
+            ["Probly 事件 ID", item.eventId],
+            ["底层事件 ID", item.venueEventId],
+            ["底层市场 ID", item.venueMarketId],
+            ["底层选项 ID", item.outcomeId],
+            ["事件 / 选项", `${item.eventName} / ${item.optionName}`],
             ["平台 / 来源", `${item.venue} / ${item.source}`],
+            ["链 / 资产", `${item.chain} / ${item.asset}`],
             ["原始标题", item.title],
             ["推荐分", item.score],
+            ["触发类型", item.triggerType],
             ["触发原因", item.trigger],
             ["准入判断", item.reason],
             ["当前状态", item.status],
+            ["入队时间 / 审核时限", `${item.queuedAt} / ${item.dueAt}`],
+            ["规则版本", item.ruleVersion],
+            ["数据指纹", item.dataFingerprint],
+            ["上一审核单", item.previousReviewId],
           ]}
         />
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -2193,27 +2523,33 @@ function AdmissionReviewDetail({ item }: { item: AdmissionCandidate }) {
               ]}
             />
           </Panel>
-          <Panel title="审核影响">
+          <Panel title="强制规则与审核影响">
             <FieldGrid
               items={[
+                ["命中规则", item.forceRuleHits],
+                ["命中字段", item.matchedField],
+                ["命中内容", item.matchedValue],
+                ["结算规则", item.settlementRule],
                 ["字段来源", item.sourceFields],
                 ["通过后", "生成 TradeableInstrument，进入可交易标的列表；若推荐分 >= 85 再进入智能推荐候选池"],
-                ["拒绝后", "保留 RawVenueMarket 和审核记录，不生成可交易标的"],
-                ["审计要求", "记录操作人、原因、规则版本、原始市场 ID 和影响范围"],
+                ["拒绝后", "结果记为 filtered_by_review；保留原始数据和审核记录，不生成可交易标的"],
+                ["审计要求", "记录操作人、结论、规则版本、数据指纹和影响范围；审核说明如填写则一并保存"],
               ]}
             />
           </Panel>
         </div>
-        <div className="rounded-lg border p-4">
-          <label className="text-sm font-medium">审核说明</label>
-          <textarea
-            className="mt-2 min-h-24 w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-zinc-900"
-            placeholder="请填写通过或拒绝的原因，至少 6 个字符。该说明会写入审计日志。"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-          {!canSubmit && <div className="mt-2 text-xs text-muted-foreground">填写审核说明后，才可以提交通过或拒绝。</div>}
-        </div>
+        {!isPending && (
+          <Panel title="审核结论">
+            <FieldGrid items={[
+              ["审核人", item.reviewer],
+              ["审核时间", item.reviewedAt],
+              ["审核说明", item.reviewNote],
+              ["准入结果", item.admissionResult],
+              ["生成标的 ID", item.generatedInstrumentId],
+              ["智能推荐候选", item.smartRecommendCandidate],
+            ]} />
+          </Panel>
+        )}
       </div>
     </Panel>
   )
@@ -2237,14 +2573,6 @@ function AutoOrderDetail({
   const [savedCopy, setSavedCopy] = useState(item.title)
   const [draftPriority, setDraftPriority] = useState(String(item.priority))
   const [savedPriority, setSavedPriority] = useState(String(item.priority))
-
-  useEffect(() => {
-    setDialog(null)
-    setDraftCopy(item.title)
-    setSavedCopy(item.title)
-    setDraftPriority(String(item.priority))
-    setSavedPriority(String(item.priority))
-  }, [item.id, item.priority, item.title])
 
   return (
     <Panel
@@ -2407,12 +2735,6 @@ function OrderDetail({
   const [showPlatformOrder, setShowPlatformOrder] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(order.updatedAt)
 
-  useEffect(() => {
-    setToast("")
-    setShowPlatformOrder(false)
-    setLastRefresh(order.updatedAt)
-  }, [order.id, order.updatedAt])
-
   const timeline = [
     { stage: "生成报价", status: "完成", time: order.createdAt, detail: order.quoteId, tone: "green" as Tone },
     { stage: "钱包签名", status: order.status === "failed" ? "已签名" : "完成", time: order.createdAt, detail: order.signature, tone: "green" as Tone },
@@ -2474,6 +2796,28 @@ function OrderDetail({
           <Info label="订单类型" value={order.type === "Market" ? "市价" : "限价"} />
           <Info label="价格 / 金额" value={`${order.price} / ${order.amount}`} />
           <Info label="预计或成交份额" value={order.shares} />
+          <Info label="总 Fee（不含 Gas）" value={`${order.totalFeeAmount} ${order.feeAsset}`} />
+        </div>
+
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">费用明细</div>
+              <div className="mt-1 text-xs text-muted-foreground">总 Fee = 底层平台 Fee + Probly 平台 Fee，不包含链上 Gas。</div>
+            </div>
+            <Badge tone="blue">{order.totalFeeAmount} {order.feeAsset}</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <Info label="底层平台 Fee" value={`${order.venueFeeAmount} ${order.feeAsset}`} />
+            <Info label="Probly 平台 Fee" value={`${order.problyFeeAmount} ${order.feeAsset}`} />
+            <Info label="费用资产" value={order.feeAsset} />
+            <Info label="底层平台费率" value={`${order.venueFeeRateBps} bps`} />
+            <Info label="ProblyBaseFeeBps" value={`${order.problyBaseFeeBps} bps`} />
+            <Info label="底层 Fee 来源" value={feeSourceText(order.venueFeeSource)} />
+            <Info label="费用版本" value={order.feePlanVersion} />
+            <Info label="对账公式" value={`${order.venueFeeAmount} + ${order.problyFeeAmount} = ${order.totalFeeAmount}`} />
+            <Info label="Gas" value="独立记录，不计入总 Fee" />
+          </div>
         </div>
 
         <div className="rounded-lg border bg-white p-4">
@@ -2520,6 +2864,13 @@ function OrderDetail({
                   ["事件名称", order.eventName],
                   ["选项", order.optionName],
                   ["交易方向", `${order.side} ${order.outcome}`],
+                  ["底层平台费率", `${order.venueFeeRateBps} bps`],
+                  ["底层平台 Fee", `${order.venueFeeAmount} ${order.feeAsset}`],
+                  ["底层 Fee 来源", feeSourceText(order.venueFeeSource)],
+                  ["ProblyBaseFeeBps", `${order.problyBaseFeeBps} bps`],
+                  ["Probly 平台 Fee", `${order.problyFeeAmount} ${order.feeAsset}`],
+                  ["用户总 Fee（不含 Gas）", `${order.totalFeeAmount} ${order.feeAsset}`],
+                  ["费用版本", order.feePlanVersion],
                   ["签名方式", order.signature],
                   ["失败原因", order.failureReason],
                 ]}
@@ -2691,12 +3042,6 @@ function SettlementDetail({
   const [toast, setToast] = useState("")
   const [localReviewTask, setLocalReviewTask] = useState<SettlementReviewTask | undefined>(reviewTask)
   const [platformResultStatus, setPlatformResultStatus] = useState("待核对")
-
-  useEffect(() => {
-    setToast("")
-    setLocalReviewTask(reviewTask)
-    setPlatformResultStatus("待核对")
-  }, [reviewTask, settlement.id])
 
   const relatedOrder = orders.find((order) => order.id === settlement.orderId)
   const relatedInstrument = instruments.find((instrument) => instrument.id === settlement.instrumentId)
@@ -2896,6 +3241,8 @@ function InstrumentDetail({
   toast: string
   onToast: (next: string) => void
 }) {
+  const comments = polymarketEventComments.filter((comment) => comment.eventId === instrument.eventId)
+
   return (
     <Panel title="标的详情与状态记录">
       <div className="space-y-4">
@@ -2904,11 +3251,16 @@ function InstrumentDetail({
             {toast}
           </div>
         )}
-        <div>
-          <div className="text-xs text-muted-foreground">标准化 ID：{instrument.id}</div>
-          <h3 className="mt-1 text-lg font-semibold">{instrument.title}</h3>
+        <div className="flex items-center gap-3">
+          <EventIcon src={instrument.eventIconUrl} label={instrument.eventName} />
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">标准化 ID：{instrument.id}</div>
+            <h3 className="mt-1 break-words text-lg font-semibold">{instrument.title}</h3>
+          </div>
         </div>
         <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
+          <Info label="Probly 事件 ID" value={instrument.eventId} />
+          <Info label="底层事件 ID" value={instrument.venueEventId} />
           <Info label="底层平台" value={instrument.venue} />
           <Info label="交易链" value={instrument.chain} />
           <Info label="结算资产" value={instrument.asset} />
@@ -2919,6 +3271,9 @@ function InstrumentDetail({
           <Info label="结算状态" value={instrument.settlementStatus} />
           <Info label="推荐池状态" value={instrument.recommendation} />
           <Info label="最近变更" value={instrument.lastChange} />
+        </div>
+        <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
+          Probly 事件 ID 用于本平台内部关联事件、标的、评论和前台详情；底层事件 ID 用于追溯 Polymarket / Predict.fun 原始事件。事件图标来自底层事件 icon，缺失时回退到 image 或默认图标。
         </div>
         <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
           可交易标的是“底层平台 + 一个事件 + 一个结果选项”的组合。结果选项是用户买的对象，例如西班牙；买 YES 表示买它会发生，买 NO 表示买它不会发生。底层选项 ID 是平台订单接口使用的标识，不是开奖结果。
@@ -2951,6 +3306,50 @@ function InstrumentDetail({
         <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
           状态变更记录包含系统自动同步、风控规则触发和运营人工操作，用来追踪为什么标的可交易、暂停交易或被禁止推荐。
         </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <MessageSquare className="size-4" />
+                Polymarket 事件评论
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                只读同步，不提供发表、回复、点赞、举报、编辑或删除。
+              </div>
+            </div>
+            <Badge tone={instrument.venue === "Polymarket" ? "blue" : "neutral"}>
+              {instrument.venue === "Polymarket" ? `${comments.length} 条 mock / 刚刚同步` : "当前平台未接入"}
+            </Badge>
+          </div>
+          {instrument.venue === "Polymarket" ? (
+            comments.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {comments.map((comment) => (
+                  <div key={comment.commentId} className="rounded-md border bg-zinc-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium">{comment.displayName}</div>
+                      <div className="text-xs text-muted-foreground">{comment.createdAt}</div>
+                    </div>
+                    <div className="mt-2 text-sm text-foreground">{comment.body}</div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span>互动 {comment.reactionCount}</span>
+                      <span>持仓 {comment.position}</span>
+                      <span>来源 polymarket_gamma</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
+                当前事件暂无已同步评论。评论为空不影响该标的交易。
+              </div>
+            )
+          ) : (
+            <div className="mt-4 rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
+              一期仅接入 Polymarket 公开事件评论，Predict.fun 标的不生成或伪造评论数据。
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => onToast(`${instrument.id} 已确认可交易，前台交易入口可展示。`)}>
             恢复/确认可交易
@@ -2975,6 +3374,7 @@ function App() {
   const [active, setActive] = useState<ModuleKey>("overview")
   const [detailView, setDetailView] = useState<DetailView | null>(null)
   const [selectedInstrument, setSelectedInstrument] = useState(instruments[0])
+  const [managedInstruments, setManagedInstruments] = useState<Instrument[]>(instruments)
   const [instrumentToast, setInstrumentToast] = useState("")
   const [selectedApi, setSelectedApi] = useState(apiHealthRows[1])
   const [selectedApiAction, setSelectedApiAction] = useState("处理")
@@ -2992,17 +3392,25 @@ function App() {
   const [selectedRisk, setSelectedRisk] = useState(riskRecords[0])
   const [toastMessage, setToastMessage] = useState("")
   const [instrumentRulesEditing, setInstrumentRulesEditing] = useState(false)
-  const [instrumentRuleVersion, setInstrumentRuleVersion] = useState("v1.3 / 生效中")
+  const [instrumentRuleVersion, setInstrumentRuleVersion] = useState("instrument_rule_v1.5")
   const [instrumentScoringRules, setInstrumentScoringRules] = useState(instrumentRuleWeights)
+  const [instrumentThresholds, setInstrumentThresholds] = useState({ manualReviewMinScore: 60, autoAdmitMinScore: 80, smartRecommendMinScore: 85 })
   const [selectedInstrumentScoringRule, setSelectedInstrumentScoringRule] = useState<InstrumentScoringRule>(instrumentRuleWeights[0])
   const [currentInstrumentFilterRules, setCurrentInstrumentFilterRules] = useState<InstrumentFilterRule[]>(instrumentFilterRules)
   const [selectedInstrumentFilterRule, setSelectedInstrumentFilterRule] = useState<InstrumentFilterRule>(instrumentFilterRules[0])
   const [instrumentFilterRuleMode, setInstrumentFilterRuleMode] = useState<"create" | "edit" | "view">("create")
+  const [admissionReviews, setAdmissionReviews] = useState<AdmissionCandidate[]>(admissionCandidates)
   const [selectedAdmission, setSelectedAdmission] = useState<AdmissionCandidate>(admissionCandidates[0])
+  const [admissionTab, setAdmissionTab] = useState<"pending" | "history">("pending")
+  const [admissionAdvancedFilters, setAdmissionAdvancedFilters] = useState({ venue: "全部", trigger: "全部", score: "全部", sla: "全部" })
   const [groupRulesEditing, setGroupRulesEditing] = useState(false)
   const [groupRuleVersion, setGroupRuleVersion] = useState("v1.2 / 生效中")
   const [groupScoringRules, setGroupScoringRules] = useState<GroupScoringRule[]>(groupRuleWeights)
   const [selectedGroupScoringRule, setSelectedGroupScoringRule] = useState<GroupScoringRule>(groupRuleWeights[0])
+  const [platformFeeEditing, setPlatformFeeEditing] = useState(false)
+  const [platformFeeVersion, setPlatformFeeVersion] = useState("fee_v1 / 生效中")
+  const [platformFeeConfig, setPlatformFeeConfig] = useState(initialPlatformFeeConfig)
+  const [platformFeeDraft, setPlatformFeeDraft] = useState(initialPlatformFeeConfig)
   const [filters, setFilters] = useState<Record<string, ListFilterState>>({
     api: createFilter(),
     rawMarkets: createFilter(),
@@ -3018,7 +3426,14 @@ function App() {
 
   const activeLabel = useMemo(() => navItems.find((item) => item.key === active)?.label ?? "总览", [active])
   const totalInstrumentWeight = useMemo(() => instrumentScoringRules.reduce((sum, item) => sum + item.weight, 0), [instrumentScoringRules])
+  const instrumentScoresValid = useMemo(() => instrumentScoringRules.every((rule) => rule.scoreBands.every((band) => Number.isInteger(band.score) && band.score >= 0 && band.score <= 100 && band.inputs.every((input) => Number.isFinite(input.value) && input.value >= 0))), [instrumentScoringRules])
+  const instrumentThresholdsValid = instrumentThresholds.manualReviewMinScore >= 0
+    && instrumentThresholds.manualReviewMinScore < instrumentThresholds.autoAdmitMinScore
+    && instrumentThresholds.autoAdmitMinScore <= instrumentThresholds.smartRecommendMinScore
+    && instrumentThresholds.smartRecommendMinScore <= 100
   const totalGroupWeight = useMemo(() => groupScoringRules.reduce((sum, item) => sum + item.weight, 0), [groupScoringRules])
+  const feePreviewAmount = useMemo(() => ((100 * platformFeeDraft.problyBaseFeeBps) / 10000).toFixed(2), [platformFeeDraft.problyBaseFeeBps])
+  const feeConfigValid = platformFeeDraft.problyBaseFeeBps >= 0 && platformFeeDraft.maxBuilderFeeBps >= platformFeeDraft.problyBaseFeeBps
   const updateFilter = (key: string, next: ListFilterState) => setFilters((current) => ({ ...current, [key]: next }))
   const updateInstrumentWeight = (name: string, weight: number) => {
     setInstrumentScoringRules((current) => current.map((item) => item.name === name ? { ...item, weight } : item))
@@ -3037,6 +3452,93 @@ function App() {
     setInstrumentRulesEditing(true)
     setDetailView(null)
     showToast("强制过滤规则已更新为草稿。建议点击“试算规则”确认影响范围，再保存规则版本。")
+  }
+  const handleAdmissionReview = (reviewId: string, action: "approve" | "reject", note: string) => {
+    const review = admissionReviews.find((item) => item.id === reviewId)
+    if (!review || review.status !== "待审核") {
+      showToast("该审核单已处理，请刷新后查看审核记录。")
+      return
+    }
+    if (review.ruleVersion !== instrumentRuleVersion) {
+      showToast("规则版本已变化，请刷新候选数据后重新审核。")
+      return
+    }
+
+    const approved = action === "approve"
+    const generatedInstrumentId = approved ? `INS-${review.id.replace("ADM-", "")}` : "--"
+    const updatedReview: AdmissionCandidate = {
+      ...review,
+      status: approved ? "已通过" : "已拒绝",
+      reviewer: "当前运营账号",
+      reviewedAt: "刚刚",
+      reviewNote: note.trim() || "未填写审核说明",
+      admissionResult: approved ? "admitted" : "filtered_by_review",
+      generatedInstrumentId,
+      smartRecommendCandidate: approved && review.score >= 85 ? "是" : "否",
+      nextAction: approved ? "已生成 TradeableInstrument" : "已按人工审核拒绝强制过滤",
+    }
+
+    setAdmissionReviews((current) => current.map((item) => item.id === reviewId ? updatedReview : item))
+    setSelectedAdmission(updatedReview)
+
+    if (approved) {
+      const generatedInstrument: Instrument = {
+        id: generatedInstrumentId,
+        eventId: review.eventId,
+        venueEventId: review.venueEventId,
+        eventIconUrl: review.eventName.includes("CPI") || review.eventName.includes("unemployment") ? eventIcons.cpi : eventIcons.bitcoin,
+        venueMarketId: review.venueMarketId,
+        outcomeId: review.outcomeId,
+        outcomeName: review.optionName,
+        settlementStatus: "未结算",
+        title: review.optionName === "YES" ? review.eventName : `${review.eventName} - ${review.optionName}`,
+        eventName: review.eventName,
+        venue: review.venue,
+        chain: review.chain,
+        asset: review.asset,
+        odds: "0.50",
+        noOdds: "0.50",
+        liquidity: review.liquidityUsd,
+        status: "tradable",
+        freshness: "刚刚",
+        recommendation: review.score >= 85 ? "可进入推荐池" : "不进入推荐池",
+        lastChange: "刚刚 人工审核通过并生成标的",
+        supportedDirections: "买 YES / 买 NO / 卖 YES / 卖 NO",
+      }
+      setManagedInstruments((current) => current.some((item) => item.id === generatedInstrumentId) ? current : [generatedInstrument, ...current])
+    }
+
+    setAdmissionTab("history")
+    setDetailView(null)
+    showToast(approved
+      ? `${review.id} 已通过审核并生成 ${generatedInstrumentId}，已进入可交易标的列表。`
+      : `${review.id} 已拒绝，结果记为 filtered_by_review，不会生成可交易标的。`)
+  }
+  const reopenAdmissionReview = (reviewId: string) => {
+    const review = admissionReviews.find((item) => item.id === reviewId)
+    if (!review || review.status !== "已拒绝") return
+    const reopened: AdmissionCandidate = {
+      ...review,
+      id: `ADM-R${String(admissionReviews.length + 1).padStart(3, "0")}`,
+      status: "待审核",
+      queuedAt: "刚刚",
+      dueAt: "12 小时后",
+      slaStatus: "正常",
+      reviewer: "--",
+      reviewedAt: "--",
+      reviewNote: "--",
+      admissionResult: "pending_review",
+      generatedInstrumentId: "--",
+      smartRecommendCandidate: "否",
+      previousReviewId: review.id,
+      dataFingerprint: `${review.dataFingerprint}-reopened`,
+      nextAction: "重新核对关键字段后决定是否生成 TradeableInstrument",
+    }
+    setAdmissionReviews((current) => [reopened, ...current])
+    setSelectedAdmission(reopened)
+    setAdmissionTab("pending")
+    setDetailView(null)
+    showToast(`${reopened.id} 已创建并关联上一审核单 ${review.id}，历史记录未被覆盖。`)
   }
   const updateGroupWeight = (name: string, weight: number) => {
     setGroupScoringRules((current) => current.map((item) => item.name === name ? { ...item, weight } : item))
@@ -3084,25 +3586,33 @@ function App() {
   )
   const filteredInstruments = useMemo(
     () =>
-      instruments.filter((instrument) =>
+      managedInstruments.filter((instrument) =>
         itemMatchesFilter(
-          `${instrument.title} ${instrument.eventName} ${instrument.outcomeName} ${instrument.venue} ${instrument.chain} ${instrument.asset}`,
+          `${instrument.id} ${instrument.eventId} ${instrument.venueEventId} ${instrument.venueMarketId} ${instrument.title} ${instrument.eventName} ${instrument.outcomeName} ${instrument.venue} ${instrument.chain} ${instrument.asset}`,
           instrument.status,
           filters.instruments,
         ),
       ),
-    [filters.instruments],
+    [filters.instruments, managedInstruments],
   )
   const filteredAdmissionCandidates = useMemo(
     () =>
-      admissionCandidates.filter((item) =>
+      admissionReviews.filter((item) =>
+        (admissionTab === "pending" ? item.status === "待审核" : item.status !== "待审核") &&
+        (admissionAdvancedFilters.venue === "全部" || item.venue === admissionAdvancedFilters.venue) &&
+        (admissionAdvancedFilters.trigger === "全部" || item.triggerType === admissionAdvancedFilters.trigger) &&
+        (admissionAdvancedFilters.score === "全部" ||
+          (admissionAdvancedFilters.score === "< 60" && item.score < 60) ||
+          (admissionAdvancedFilters.score === "60-79" && item.score >= 60 && item.score < 80) ||
+          (admissionAdvancedFilters.score === ">= 80" && item.score >= 80)) &&
+        (admissionAdvancedFilters.sla === "全部" || item.slaStatus === admissionAdvancedFilters.sla) &&
         itemMatchesFilter(
-          `${item.id} ${item.rawMarketId} ${item.venue} ${item.source} ${item.title} ${item.trigger} ${item.reason}`,
+          `${item.id} ${item.candidateInstrumentId} ${item.rawMarketId} ${item.eventName} ${item.optionName} ${item.venue} ${item.source} ${item.triggerType} ${item.trigger} ${item.forceRuleHits} ${item.reason} ${item.reviewer}`,
           item.status,
           filters.admission,
         ),
       ),
-    [filters.admission],
+    [admissionReviews, admissionTab, admissionAdvancedFilters, filters.admission],
   )
   const filteredGroups = useMemo(
     () => groupCandidates.filter((group) => itemMatchesFilter(`${group.title} ${group.type} ${group.delta}`, group.statusLabel, filters.groups)),
@@ -3130,13 +3640,13 @@ function App() {
   )
   const selectedEventInstruments = useMemo(
     () =>
-      instruments.filter(
+      managedInstruments.filter(
         (instrument) =>
           instrument.eventId === selectedInstrument.eventId &&
           instrument.venue === selectedInstrument.venue &&
           instrument.chain === selectedInstrument.chain,
       ),
-    [selectedInstrument],
+    [managedInstruments, selectedInstrument],
   )
 
   return (
@@ -3422,16 +3932,17 @@ function App() {
                       <Badge tone={instrumentRulesEditing ? "amber" : "green"}>{instrumentRuleVersion}</Badge>
                       {instrumentRulesEditing ? (
                         <>
+                          <Button size="sm" variant="outline" onClick={() => showToast("规则草稿试算完成：4 个样例标的已输出字段快照、单项分、强制规则命中和最终分流。")}>试算草稿</Button>
                           <Button
                             size="sm"
-                            disabled={totalInstrumentWeight !== 100}
+                            disabled={totalInstrumentWeight !== 100 || !instrumentThresholdsValid || !instrumentScoresValid}
                             onClick={() => {
                               setInstrumentRulesEditing(false)
-                              setInstrumentRuleVersion("v1.4 / 生效中")
-                              showToast("标的过滤规则已保存为新版本。后续市场同步会按最新评分、阈值和强制过滤规则重新计算候选结果。")
+                              setInstrumentRuleVersion("instrument_rule_v1.5")
+                              showToast("instrument_rule_v1.5 已发布，候选标的重算任务已创建。后续同步、审核和智能推荐将使用新版本。")
                             }}
                           >
-                            保存规则
+                            发布规则版本
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => setInstrumentRulesEditing(false)}>取消编辑</Button>
                         </>
@@ -3441,8 +3952,8 @@ function App() {
                     </div>
                   }
                 >
-                  <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-                    <div className="space-y-4">
+                  <div className="grid gap-4">
+                    <div className="min-w-0 space-y-4">
                       <div className="rounded-lg border bg-zinc-50 p-4 text-sm text-muted-foreground">
                         这里配置的是“原平台市场是否能进入本聚合平台成为可交易标的”的准入规则。系统先执行强制过滤规则，再计算推荐分；推荐分决定自动入池、人工审核或直接过滤。
                       </div>
@@ -3481,18 +3992,52 @@ function App() {
                         ])}
                       />
                     </div>
-                    <div className="space-y-3">
-                      <Info label="自动进入可交易标的" value="推荐分 >= 80" />
-                      <Info label="进入人工审核" value="60 <= 推荐分 < 80" />
-                      <Info label="直接过滤" value="推荐分 < 60" />
-                      <Info label="进入智能推荐候选池" value="已成为可交易标的且推荐分 >= 85" />
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-lg border bg-white p-4 md:col-span-2 xl:col-span-4">
+                        <div className="text-sm font-semibold">准入与推荐阈值</div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          {[
+                            ["manualReviewMinScore", "人工审核最低分"],
+                            ["autoAdmitMinScore", "自动准入最低分"],
+                            ["smartRecommendMinScore", "智能推荐最低分"],
+                          ].map(([key, label]) => <label key={key} className="space-y-1 text-sm">
+                            <span className="text-xs text-muted-foreground">{label}</span>
+                            <input
+                              disabled={!instrumentRulesEditing}
+                              className="h-10 w-full rounded-md border px-3 disabled:bg-zinc-50"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={instrumentThresholds[key as keyof typeof instrumentThresholds]}
+                              onChange={(event) => setInstrumentThresholds((current) => ({ ...current, [key]: Number(event.target.value) }))}
+                            />
+                          </label>)}
+                        </div>
+                        <div className={`mt-3 rounded-md border p-3 text-sm ${instrumentThresholdsValid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
+                          {instrumentThresholdsValid ? "阈值顺序校验通过。" : "必须满足：0 <= 人工审核最低分 < 自动准入最低分 <= 智能推荐最低分 <= 100。"}
+                        </div>
+                      </div>
+                      <Info label="直接过滤" value={`推荐分 < ${instrumentThresholds.manualReviewMinScore}`} />
+                      <Info label="进入人工审核" value={`${instrumentThresholds.manualReviewMinScore} <= 推荐分 < ${instrumentThresholds.autoAdmitMinScore}`} />
+                      <Info label="进入可交易标的" value={`推荐分 >= ${instrumentThresholds.autoAdmitMinScore}`} />
+                      <Info label="进入智能推荐候选池" value={`已成为可交易标的且推荐分 >= ${instrumentThresholds.smartRecommendMinScore}`} />
                       <Info label="当前状态" value={instrumentRulesEditing ? "编辑中，未保存前不影响线上同步" : "浏览态，规则正在生效"} />
-                      <Info label="保存条件" value={totalInstrumentWeight === 100 ? "权重校验通过" : `当前总权重 ${totalInstrumentWeight}%，不能保存`} />
-                      <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground">
-                        保存规则不是单纯保存页面文字，而是生成新的规则版本。保存后，后续市场同步、候选标的筛选、人工审核队列和智能推荐候选池都会按新规则重新计算。
+                      <Info label="发布条件" value={totalInstrumentWeight === 100 && instrumentThresholdsValid && instrumentScoresValid ? "权重、阈值、档位校验通过" : "存在未通过的权重、阈值或档位配置"} />
+                      <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-4">
+                        发布规则不是单纯保存页面文字，而是生成新的规则版本。发布后会创建候选标的异步重算任务，市场同步、人工审核队列和智能推荐候选池统一使用新版本。
                       </div>
                     </div>
                   </div>
+                </Panel>
+
+                <Panel title="规则版本与发布记录">
+                  <DataTable
+                    columns={["版本", "状态", "更新时间", "操作人", "影响范围"]}
+                    rows={[
+                      [instrumentRuleVersion, <Badge tone="green">生效中</Badge>, "2026-06-22 14:30 UTC", "产品运营", "1,284 个候选标的"],
+                      ["instrument_rule_v1.4", <Badge tone="neutral">已被替代</Badge>, "2026-06-18 10:00 UTC", "产品运营", "历史可追溯"],
+                    ]}
+                  />
                 </Panel>
 
                 <Panel title="单项评分规则">
@@ -3522,7 +4067,7 @@ function App() {
                         <div className="mt-2 text-sm text-muted-foreground">{item.scoreRule}</div>
                         <div className="mt-3 space-y-2">
                           {item.scoreBands.slice(0, 3).map((band) => (
-                            <div key={band} className="rounded-md border bg-zinc-50 p-2 text-xs text-muted-foreground">{band}</div>
+                            <div key={band.id} className="rounded-md border bg-zinc-50 p-2 text-xs text-muted-foreground">{band.condition}：<strong>{band.score} 分</strong></div>
                           ))}
                         </div>
                         <div className="mt-3 rounded-md border bg-white p-3 text-xs text-muted-foreground">示例：{item.example}</div>
@@ -3538,7 +4083,7 @@ function App() {
                       item.rule,
                       item.condition,
                       <Badge tone={item.action === "直接过滤" ? "red" : "amber"}>{item.action}</Badge>,
-                      <Badge tone="green">{item.status}</Badge>,
+                      <Badge tone={item.status === "启用" ? "green" : "neutral"}>{item.status}</Badge>,
                       <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
@@ -3567,29 +4112,17 @@ function App() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setCurrentInstrumentFilterRules((current) => current.filter((rule) => rule.id !== item.id))
+                            setCurrentInstrumentFilterRules((current) => current.map((rule) => rule.id === item.id ? { ...rule, status: rule.status === "启用" ? "停用" : "启用" } : rule))
                             setInstrumentRulesEditing(true)
-                            showToast(`${item.rule} 已从规则草稿中删除。保存规则版本后生效。`)
+                            showToast(`${item.rule} 已${item.status === "启用" ? "停用" : "启用"}并加入草稿，发布规则版本后生效。`)
                           }}
                         >
-                          删除
+                          {item.status === "启用" ? "停用" : "启用"}
                         </Button>
                       </div>,
                     ])}
                   />
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setInstrumentRulesEditing(true)
-                        setInstrumentFilterRuleMode("create")
-                        setSelectedInstrumentFilterRule(instrumentFilterRules[0])
-                        setDetailView("instrumentRuleCreate")
-                      }}
-                    >
-                      新增规则
-                    </Button>
                     <Button size="sm" variant="outline" onClick={() => showToast("已试算当前规则：4 个样例标的完成重算，其中 2 个自动入池、1 个进入人工审核、1 个被强制过滤。")}>试算规则</Button>
                   </div>
                 </Panel>
@@ -3608,37 +4141,17 @@ function App() {
                   />
                 </Panel>
 
-                <Panel title="标的准入人工审核队列">
-                  <ListToolbar
-                    filter={filters.admission}
-                    statusOptions={["待审核", "已通过", "已拒绝"]}
-                    onChange={(next) => updateFilter("admission", next)}
-                    keywordPlaceholder="搜索审核单、原始市场、平台、来源、触发原因"
-                    statusLabel="审核状态"
-                  />
-                  <DataTable
-                    columns={["审核单号", "原平台标的", "平台/来源", "推荐分", "触发原因", "状态", "操作"]}
-                    rows={filteredAdmissionCandidates.map((item) => [
-                      item.id,
-                      item.title,
-                      `${item.venue} / ${item.source}`,
-                      <Badge tone={item.score >= 80 ? "green" : item.score >= 60 ? "amber" : "red"}>{item.score}</Badge>,
-                      item.trigger,
-                      <Badge tone={item.status === "待审核" ? "amber" : item.status === "已通过" ? "green" : "red"}>{item.status}</Badge>,
-                      <Button
-                        size="sm"
-                        variant={selectedAdmission.id === item.id ? "default" : "outline"}
-                        onClick={() => {
-                          setSelectedAdmission(item)
-                          setDetailView("admissionReview")
-                        }}
-                      >
-                        查看
-                      </Button>,
-                    ])}
-                  />
+                <Panel
+                  title="标的审核流向"
+                  action={<Button size="sm" onClick={() => setActive("instrumentReviews")}>进入标的审核</Button>}
+                >
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Info label="待审核" value={`${admissionReviews.filter((item) => item.status === "待审核").length} 个候选标的`} />
+                    <Info label="审核通过" value={`${admissionReviews.filter((item) => item.status === "已通过").length} 条记录`} />
+                    <Info label="审核拒绝" value={`${admissionReviews.filter((item) => item.status === "已拒绝").length} 条记录`} />
+                  </div>
                   <div className="mt-4 rounded-lg border bg-zinc-50 p-4 text-sm text-muted-foreground">
-                    该队列承接推荐分处于人工审核区间，或命中强制人工审核规则的原平台市场。通过后才生成可交易标的；拒绝后只保留原始市场和审核记录。
+                    规则页只负责配置和试算。推荐分处于 60-79，或命中“进入人工审核”强制规则的候选标的，统一进入独立“标的审核”模块；审核拒绝后按 filtered_by_review 强制过滤。
                   </div>
                 </Panel>
               </div>
@@ -3653,22 +4166,29 @@ function App() {
                     filter={filters.instruments}
                     statusOptions={["tradable", "stale_market", "low_liquidity"]}
                     onChange={(next) => updateFilter("instruments", next)}
-                    keywordPlaceholder="搜索事件、结果选项、平台、链、资产"
+                    keywordPlaceholder="搜索标的、事件 ID、底层事件 ID、结果选项、平台"
                     statusLabel="交易状态"
                   />
                   <DataTable
-                    columns={["可交易标的", "结果选项", "平台/链", "资产", "YES 价格", "流动性", "交易状态", "操作"]}
+                    columns={["可交易标的", "事件 ID", "结果选项", "平台/链", "资产", "YES 价格", "流动性", "交易状态", "操作"]}
                     rows={filteredInstruments.map((item) => [
-                      <button
-                        className="text-left font-medium text-sky-700"
-                        onClick={() => {
-                          setSelectedInstrument(item)
-                          setInstrumentToast("")
-                          setDetailView("instrument")
-                        }}
-                      >
-                        {item.title}
-                      </button>,
+                      <div className="flex min-w-[240px] items-center gap-3">
+                        <EventIcon src={item.eventIconUrl} label={item.eventName} />
+                        <button
+                          className="text-left font-medium text-sky-700"
+                          onClick={() => {
+                            setSelectedInstrument(item)
+                            setInstrumentToast("")
+                            setDetailView("instrument")
+                          }}
+                        >
+                          {item.title}
+                        </button>
+                      </div>,
+                      <div className="min-w-[150px] text-xs">
+                        <div className="font-medium">{item.eventId}</div>
+                        <div className="mt-1 text-muted-foreground">{item.venueEventId}</div>
+                      </div>,
                       item.outcomeName,
                       `${item.venue} / ${item.chain}`,
                       item.asset,
@@ -3688,6 +4208,119 @@ function App() {
                       </Button>,
                     ])}
                   />
+                </Panel>
+              </div>
+            )}
+
+            {active === "instrumentReviews" && (
+              <div className="space-y-5">
+                <Panel
+                  title="标的审核"
+                  action={
+                    <div className="flex rounded-md border bg-zinc-50 p-1">
+                      <button
+                        className={`rounded px-3 py-1.5 text-sm ${admissionTab === "pending" ? "bg-zinc-900 text-white" : "text-muted-foreground"}`}
+                        onClick={() => setAdmissionTab("pending")}
+                      >
+                        待审核
+                      </button>
+                      <button
+                        className={`rounded px-3 py-1.5 text-sm ${admissionTab === "history" ? "bg-zinc-900 text-white" : "text-muted-foreground"}`}
+                        onClick={() => setAdmissionTab("history")}
+                      >
+                        审核记录
+                      </button>
+                    </div>
+                  }
+                >
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <Info label="待审核总数" value={String(admissionReviews.filter((item) => item.status === "待审核").length)} />
+                    <Info label="推荐分区间触发" value={String(admissionReviews.filter((item) => item.status === "待审核" && item.triggerType === "推荐分区间").length)} />
+                    <Info label="强制规则触发" value={String(admissionReviews.filter((item) => item.status === "待审核" && item.triggerType === "强制规则").length)} />
+                    <Info label="即将超时" value={String(admissionReviews.filter((item) => item.status === "待审核" && item.slaStatus === "即将超时").length)} />
+                  </div>
+                  <div className="mt-4 rounded-lg border bg-zinc-50 p-4 text-sm text-muted-foreground">
+                    审核对象是“事件 + 选项”的可交易候选标的。通过后生成 TradeableInstrument；拒绝后结果记为 filtered_by_review，与推荐分低于 60 的直接过滤具有相同准入效果。
+                  </div>
+                </Panel>
+
+                <Panel title={admissionTab === "pending" ? "待审核列表" : "审核记录"}>
+                  <ListToolbar
+                    filter={filters.admission}
+                    statusOptions={admissionTab === "pending" ? ["待审核"] : ["已通过", "已拒绝"]}
+                    onChange={(next) => updateFilter("admission", next)}
+                    keywordPlaceholder="搜索审核单、候选标的、事件、选项、平台、规则或审核人"
+                    statusLabel="审核状态"
+                  />
+                  <div className="mb-4 grid gap-3 rounded-lg border bg-zinc-50 p-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["平台", "venue", ["全部", "Polymarket", "Predict.fun"]],
+                      ["触发类型", "trigger", ["全部", "推荐分区间", "强制规则"]],
+                      ["推荐分", "score", ["全部", "< 60", "60-79", ">= 80"]],
+                      ["审核时限", "sla", ["全部", "正常", "即将超时", "已完成"]],
+                    ].map(([label, key, options]) => (
+                      <label key={String(key)} className="text-xs text-muted-foreground">
+                        {String(label)}
+                        <select
+                          className="mt-1 h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground outline-none focus:border-zinc-900"
+                          value={admissionAdvancedFilters[key as keyof typeof admissionAdvancedFilters]}
+                          onChange={(event) => setAdmissionAdvancedFilters((current) => ({ ...current, [key as string]: event.target.value }))}
+                        >
+                          {(options as string[]).map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+
+                  {admissionTab === "pending" ? (
+                    <DataTable
+                      columns={["审核单号", "候选标的", "平台/API 来源", "推荐分", "触发类型/规则", "时间与时限", "操作"]}
+                      rows={filteredAdmissionCandidates.map((item) => [
+                        item.id,
+                        <div className="min-w-[250px]">
+                          <div className="font-medium">{item.eventName}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">选项：{item.optionName} · {item.candidateInstrumentId}</div>
+                        </div>,
+                        `${item.venue} / ${item.source}`,
+                        <Badge tone={item.score >= 80 ? "green" : item.score >= 60 ? "amber" : "red"}>{item.score}</Badge>,
+                        <div className="min-w-[190px]">
+                          <div>{item.triggerType}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{item.forceRuleHits}</div>
+                        </div>,
+                        <div>
+                          <div className="text-xs">入队：{item.queuedAt}</div>
+                          <div className="mt-1 text-xs">截止：{item.dueAt}</div>
+                          <Badge tone={item.slaStatus === "即将超时" ? "amber" : "green"}>{item.slaStatus}</Badge>
+                        </div>,
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedAdmission(item); setDetailView("admissionReview") }}>查看</Button>,
+                      ])}
+                    />
+                  ) : (
+                    <DataTable
+                      columns={["审核单号", "候选标的", "审核与处理结果", "审核信息", "审核说明", "操作"]}
+                      rows={filteredAdmissionCandidates.map((item) => [
+                        item.id,
+                        <div className="min-w-[230px]">
+                          <div className="font-medium">{item.eventName}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">选项：{item.optionName}</div>
+                        </div>,
+                        <div className="min-w-[180px]">
+                          <Badge tone={item.status === "已通过" ? "green" : "red"}>{item.status}</Badge>
+                          <div>{item.admissionResult}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{item.generatedInstrumentId === "--" ? "未生成可交易标的" : `生成 ${item.generatedInstrumentId}`}</div>
+                        </div>,
+                        <div className="min-w-[130px]">
+                          <div>{item.reviewer}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{item.reviewedAt}</div>
+                        </div>,
+                        <div className="max-w-[260px] text-sm text-muted-foreground">{item.reviewNote}</div>,
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedAdmission(item); setDetailView("admissionReview") }}>查看</Button>,
+                      ])}
+                    />
+                  )}
+                  {filteredAdmissionCandidates.length === 0 && (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">当前筛选条件下没有审核数据。</div>
+                  )}
                 </Panel>
               </div>
             )}
@@ -3851,6 +4484,144 @@ function App() {
               </div>
             )}
 
+            {active === "feeRules" && (
+              <div className="space-y-5">
+                <Panel
+                  title="Probly 平台手续费配置"
+                  action={
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={platformFeeEditing ? "amber" : "green"}>{platformFeeVersion}</Badge>
+                      {platformFeeEditing ? (
+                        <>
+                          <Button
+                            size="sm"
+                            disabled={!feeConfigValid}
+                            onClick={() => {
+                              const nextVersion = "fee_v2 / 生效中"
+                              setPlatformFeeConfig({ ...platformFeeDraft, feePlanVersion: "fee_v2", status: "生效中" })
+                              setPlatformFeeVersion(nextVersion)
+                              setPlatformFeeEditing(false)
+                              showToast("平台手续费配置已保存为新版本。后续 Quote 会使用新的 ProblyBaseFeeBps 和 MaxBuilderFeeBps。")
+                            }}
+                          >
+                            保存配置
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setPlatformFeeDraft(platformFeeConfig)
+                              setPlatformFeeEditing(false)
+                            }}
+                          >
+                            取消编辑
+                          </Button>
+                        </>
+                      ) : (
+                        <Button size="sm" onClick={() => setPlatformFeeEditing(true)}>编辑配置</Button>
+                      )}
+                    </div>
+                  }
+                >
+                  <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-lg border bg-zinc-50 p-4 text-sm text-muted-foreground">
+                        一期只配置 Probly 平台基础费率和总 Builder Fee 上限。Quote 中的 Builder Fee 等于 ProblyBaseFeeBps 按成交金额计算出的平台服务费。
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="rounded-lg border bg-white p-4">
+                          <div className="text-sm font-semibold">ProblyBaseFeeBps</div>
+                          <div className="mt-1 text-xs text-muted-foreground">Probly 平台基础费率，单位 bps。20 bps 表示成交金额的 0.20%。</div>
+                          <div className="mt-4 flex items-center gap-3">
+                            <input
+                              className="h-2 flex-1 accent-zinc-900 disabled:opacity-40"
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={platformFeeDraft.problyBaseFeeBps}
+                              disabled={!platformFeeEditing}
+                              onChange={(event) => setPlatformFeeDraft((current) => ({ ...current, problyBaseFeeBps: Number(event.target.value) }))}
+                            />
+                            <input
+                              className="h-10 w-24 rounded-md border px-3 text-right outline-none focus:border-zinc-900 disabled:bg-zinc-50"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={platformFeeDraft.problyBaseFeeBps}
+                              disabled={!platformFeeEditing}
+                              onChange={(event) => setPlatformFeeDraft((current) => ({ ...current, problyBaseFeeBps: Number(event.target.value) }))}
+                            />
+                          </div>
+                        </label>
+                        <label className="rounded-lg border bg-white p-4">
+                          <div className="text-sm font-semibold">MaxBuilderFeeBps</div>
+                          <div className="mt-1 text-xs text-muted-foreground">总 Builder Fee 上限。一期没有商户费，暂时作为平台费率护栏和二期扩展预留。</div>
+                          <div className="mt-4 flex items-center gap-3">
+                            <input
+                              className="h-2 flex-1 accent-zinc-900 disabled:opacity-40"
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={platformFeeDraft.maxBuilderFeeBps}
+                              disabled={!platformFeeEditing}
+                              onChange={(event) => setPlatformFeeDraft((current) => ({ ...current, maxBuilderFeeBps: Number(event.target.value) }))}
+                            />
+                            <input
+                              className="h-10 w-24 rounded-md border px-3 text-right outline-none focus:border-zinc-900 disabled:bg-zinc-50"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={platformFeeDraft.maxBuilderFeeBps}
+                              disabled={!platformFeeEditing}
+                              onChange={(event) => setPlatformFeeDraft((current) => ({ ...current, maxBuilderFeeBps: Number(event.target.value) }))}
+                            />
+                          </div>
+                        </label>
+                      </div>
+                      <div className={`rounded-md border p-3 text-sm ${feeConfigValid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>
+                        {feeConfigValid ? "校验通过：平台基础费率未超过总 Builder Fee 上限。" : "校验失败：ProblyBaseFeeBps 不能大于 MaxBuilderFeeBps。"}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <Info label="当前生效版本" value={platformFeeConfig.feePlanVersion} />
+                      <Info label="平台基础费率" value={`${platformFeeConfig.problyBaseFeeBps} bps`} />
+                      <Info label="总 Builder Fee 上限" value={`${platformFeeConfig.maxBuilderFeeBps} bps`} />
+                      <Info label="100 USDC 成交预估" value={`${feePreviewAmount} USDC 平台服务费`} />
+                      <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground">
+                        下单前 Quote 必须锁定 `problyBaseFeeBps`、`maxBuilderFeeBps`、`feePlanVersion` 和 `builderFeeAmount`。订单失败、Quote 过期、风控阻断和 Maker 未成交均不收费。
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+
+                <Panel title="Quote 费用字段预览">
+                  <DataTable
+                    columns={["字段", "示例值", "说明"]}
+                    rows={[
+                      ["feePlanVersion", platformFeeConfig.feePlanVersion, "生成 Quote 时使用的平台手续费规则版本"],
+                      ["problyBaseFeeBps", `${platformFeeDraft.problyBaseFeeBps}`, "Probly 平台基础费率"],
+                      ["maxBuilderFeeBps", `${platformFeeDraft.maxBuilderFeeBps}`, "总 Builder Fee 上限，一期作为护栏"],
+                      ["builderFeeAmount", `${feePreviewAmount} USDC`, "以 100 USDC 成交金额试算的 Builder Fee"],
+                    ]}
+                  />
+                </Panel>
+
+                <Panel title="费用版本记录">
+                  <DataTable
+                    columns={["版本", "ProblyBaseFeeBps", "MaxBuilderFeeBps", "操作人", "生效时间", "备注"]}
+                    rows={platformFeeHistory.map((item) => [
+                      item.version,
+                      `${item.problyBaseFeeBps} bps`,
+                      `${item.maxBuilderFeeBps} bps`,
+                      item.operator,
+                      item.effectiveAt,
+                      item.note,
+                    ])}
+                  />
+                </Panel>
+              </div>
+            )}
+
             {active === "autoOrder" && (
               <div className="space-y-5">
                 <Panel title="AI 快捷下单推荐列表">
@@ -3900,7 +4671,7 @@ function App() {
                     statusLabel="订单状态"
                   />
                   <DataTable
-                    columns={["订单号", "事件名称", "选项", "交易方向", "平台", "金额", "状态", "操作"]}
+                    columns={["订单号", "事件名称", "选项", "交易方向", "平台", "金额", "总 Fee", "状态", "操作"]}
                     rows={filteredOrders.map((item) => [
                       item.id,
                       item.eventName,
@@ -3908,6 +4679,10 @@ function App() {
                       `${item.side} ${item.outcome}`,
                       item.venue,
                       item.amount,
+                      <div className="min-w-[92px]">
+                        <div className="font-medium">{item.totalFeeAmount} {item.feeAsset}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">不含 Gas</div>
+                      </div>,
                       <Badge tone={statusTone(item.status)}>{orderStatusText(item.status)}</Badge>,
                       <Button
                         size="sm"
@@ -4090,7 +4865,7 @@ function App() {
                 <Panel title="护栏告警">
                   <div className="space-y-3">
                     <Guardrail icon={CheckCircle2} label="聚合器页面可用率" value="99.42%" status="正常" tone="green" />
-                    <Guardrail icon={Clock3} label="GemW 主页加载增加" value="128ms" status="低于阈值" tone="green" />
+                    <Guardrail icon={Clock3} label="GemW 接入页加载增加" value="128ms" status="低于阈值" tone="green" />
                     <Guardrail icon={XCircle} label="Predict Orders 失败率" value="3.8%" status="观察中" tone="amber" />
                     <Guardrail icon={LineChart} label="Quote 过期率" value="2.1%" status="稳定" tone="blue" />
                   </div>
@@ -4105,9 +4880,9 @@ function App() {
                   detailView === "batchSync" ? "同步当前筛选来源" :
                   detailView === "instrument" ? "可交易标的详情" :
                   detailView === "instrumentScoreRule" ? "评分项量化配置" :
-                  detailView === "instrumentRuleCreate" ? (instrumentFilterRuleMode === "edit" ? "编辑强制过滤规则" : "新增强制过滤规则") :
+                  detailView === "instrumentRuleCreate" ? "编辑固定强制规则" :
                   detailView === "instrumentForceRuleView" ? "强制过滤规则详情" :
-                  detailView === "admissionReview" ? "标的准入审核详情" :
+                  detailView === "admissionReview" ? (selectedAdmission.status === "待审核" ? "标的审核详情" : "标的审核记录详情") :
                   detailView === "groupScoreRule" ? "归组匹配项量化配置" :
                   detailView === "group" ? "归组审核详情" :
                   detailView === "autoOrder" ? "智能推荐详情" :
@@ -4151,15 +4926,22 @@ function App() {
                     onCreate={saveInstrumentFilterRule}
                   />
                 )}
-                {detailView === "admissionReview" && <AdmissionReviewDetail item={selectedAdmission} />}
+                {detailView === "admissionReview" && (
+                  <AdmissionReviewDetail
+                    item={selectedAdmission}
+                    onReview={handleAdmissionReview}
+                    onReopen={reopenAdmissionReview}
+                  />
+                )}
                 {detailView === "groupScoreRule" && (
                   <GroupScoreRuleEditor rule={selectedGroupScoringRule} onSave={saveGroupScoringRule} />
                 )}
                 {detailView === "group" && <GroupReviewDetail group={selectedGroup} decision={groupDecision} onDecision={setGroupDecision} />}
-                {detailView === "autoOrder" && <AutoOrderDetail item={selectedAutoOrder} result={autoOrderResult} onResult={setAutoOrderResult} />}
-                {detailView === "order" && <OrderDetail order={selectedOrder} result={orderResult} onResult={setOrderResult} />}
+                {detailView === "autoOrder" && <AutoOrderDetail key={selectedAutoOrder.id} item={selectedAutoOrder} result={autoOrderResult} onResult={setAutoOrderResult} />}
+                {detailView === "order" && <OrderDetail key={selectedOrder.id} order={selectedOrder} result={orderResult} onResult={setOrderResult} />}
                 {detailView === "settlement" && (
                   <SettlementDetail
+                    key={selectedSettlement.id}
                     settlement={selectedSettlement}
                     reviewTask={reviewTasks.find((task) => task.settlementId === selectedSettlement.id)}
                     onCreateReviewTask={createSettlementReviewTask}
@@ -4181,6 +4963,24 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-white p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-medium">{value}</div>
+    </div>
+  )
+}
+
+function EventIcon({ src, label }: { src: string; label: string }) {
+  return (
+    <div className="relative size-12 shrink-0 overflow-hidden rounded-md border bg-zinc-900">
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">
+        {label.slice(0, 2).toUpperCase()}
+      </div>
+      <img
+        src={src}
+        alt={`${label} 事件图标`}
+        className="absolute inset-0 size-full object-cover"
+        onError={(event) => {
+          event.currentTarget.style.display = "none"
+        }}
+      />
     </div>
   )
 }
