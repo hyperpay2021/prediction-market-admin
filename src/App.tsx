@@ -72,7 +72,7 @@ const metrics = [
   { label: "今日 GMV", value: "$482K", trend: "+18.4%", tone: "green" as Tone },
   { label: "下单成功率", value: "97.6%", trend: "+2.1%", tone: "green" as Tone },
   { label: "活跃标的", value: "1,284", trend: "Polymarket 812", tone: "blue" as Tone },
-  { label: "高匹配待确认", value: "18", trend: "仅 >=95 入队", tone: "amber" as Tone },
+  { label: "归组待审核", value: "18", trend: "95-98 入队", tone: "amber" as Tone },
 ]
 
 const initialPlatformFeeConfig = {
@@ -908,22 +908,22 @@ const rawMarketRows = [
 const instrumentRuleWeights = [
   {
     name: "流动性",
-    weight: 30,
+    weight: 35,
     description: "用盘口深度和价差衡量用户是否能顺畅成交",
-    sourceFields: ["depthUsdWithin2Pct", "spreadBps", "orderbookUpdatedAt"],
-    scoreRule: "固定使用 2% 价差内深度、买卖价差和盘口更新时间；按顺序命中一个固定档位并返回精确分值。",
+    sourceFields: ["bestBid", "bestAsk", "midpoint", "depthUsdWithin2Pct", "spreadBps", "orderbookUpdatedAt", "orderbookAgeSec"],
+    scoreRule: "固定使用盘口新鲜度、单边缺失、2% 价差内深度和买卖价差；按顺序命中一个固定档位并返回精确分值。",
     scoreBands: [
+      { id: "liq-stale", label: "盘口超过有效期", condition: "orderbookAgeSec > 60、orderbookUpdatedAt 缺失或 bestBid/bestAsk 单边缺失", score: 20, inputs: [{ label: "有效期", value: 60, unit: "秒" }] },
+      { id: "liq-low", label: "深度不足或价差过大", condition: "depthUsdWithin2Pct < $100,000 或 spreadBps > 500", score: 35, inputs: [{ label: "深度红线", value: 100000, unit: "USD" }, { label: "价差红线", value: 500, unit: "bps" }] },
       { id: "liq-high", label: "深度充足且价差小", condition: "depthUsdWithin2Pct >= $1,000,000 且 spreadBps <= 150", score: 95, inputs: [{ label: "最低深度", value: 1000000, unit: "USD" }, { label: "最大价差", value: 150, unit: "bps" }] },
       { id: "liq-medium", label: "深度和价差良好", condition: "$300,000 <= depthUsdWithin2Pct < $1,000,000 且 spreadBps <= 250", score: 82, inputs: [{ label: "最低深度", value: 300000, unit: "USD" }, { label: "最大价差", value: 250, unit: "bps" }] },
       { id: "liq-base", label: "达到基础流动性", condition: "$100,000 <= depthUsdWithin2Pct < $300,000", score: 65, inputs: [{ label: "最低深度", value: 100000, unit: "USD" }] },
-      { id: "liq-low", label: "深度不足或价差过大", condition: "depthUsdWithin2Pct < $100,000 或 spreadBps > 500", score: 35, inputs: [{ label: "深度红线", value: 100000, unit: "USD" }, { label: "价差红线", value: 500, unit: "bps" }] },
-      { id: "liq-stale", label: "盘口超过有效期", condition: "orderbookAgeSec > 60 或 orderbookUpdatedAt 缺失", score: 20, inputs: [{ label: "有效期", value: 60, unit: "秒" }] },
     ],
     example: "2% 范围深度 $1.8M、价差 120 bps、盘口 8 秒前更新 = 95 分",
   },
   {
     name: "成交量/热度",
-    weight: 20,
+    weight: 25,
     description: "用成交、持仓和原平台热度衡量是否值得展示",
     sourceFields: ["venueHotRank", "volume24hUsd", "tradeCount24h", "openInterestUsd", "lastTradeAt"],
     scoreRule: "固定使用平台热度排名、24 小时成交额、成交次数和未平仓金额；未匹配高档时安全降级。",
@@ -936,44 +936,30 @@ const instrumentRuleWeights = [
     example: "热门榜 Top 10 + 高频成交 = 95 分",
   },
   {
-    name: "规则清晰度",
-    weight: 20,
-    description: "用标准化字段完整度衡量用户能否理解事件如何开奖",
-    sourceFields: ["hasResolutionSource", "hasResolutionRule", "hasEndTime", "hasOutcomeMapping", "ruleParseStatus", "descriptionCompleteness"],
-    scoreRule: "按结算来源、结算规则、到期时间、选项映射和规则解析状态打分。",
-    scoreBands: [
-      { id: "clarity-clear", label: "核心字段完整且解析清晰", condition: "核心字段完整且 ruleParseStatus=clear", score: 100, inputs: [] },
-      { id: "clarity-weak", label: "仅一个非关键字段较弱", condition: "核心字段完整，且仅 1 个非关键字段缺失或 descriptionCompleteness < 80", score: 75, inputs: [{ label: "描述完整度", value: 80, unit: "%" }] },
-      { id: "clarity-ambiguous", label: "规则存在歧义", condition: "缺少规则入口、多个非关键字段缺失或 ruleParseStatus=ambiguous", score: 45, inputs: [] },
-      { id: "clarity-invalid", label: "关键规则不可用", condition: "结算来源缺失、ruleParseStatus=failed 或 outcomeMappingConflict=true", score: 0, inputs: [] },
-    ],
-    example: "有结算规则链接和明确数据源 = 92 分",
-  },
-  {
     name: "到期时间",
-    weight: 15,
+    weight: 20,
     description: "用到期时间窗口衡量是否适合一期交易和推荐",
-    sourceFields: ["endTime", "hoursToClose", "settlementWindowHours", "isTradingClosed"],
-    scoreRule: "按距离停止交易/结算时间、结算窗口长度和交易关闭状态打分。",
+    sourceFields: ["tradingCloseTime", "hoursToClose", "isTradingClosed"],
+    scoreRule: "按距离停止交易时间和交易关闭状态打分；tradingCloseTime 必须是停止交易时间，不是结算派奖时间。",
     scoreBands: [
+      { id: "expiry-invalid", label: "不适合准入", condition: "hoursToClose < 2 小时、> 90 天、已停止交易或 tradingCloseTime 缺失", score: 20, inputs: [{ label: "临近红线", value: 2, unit: "小时" }, { label: "过远红线", value: 90, unit: "天" }] },
       { id: "expiry-normal", label: "适合交易", condition: "6 小时 <= hoursToClose <= 30 天", score: 95, inputs: [{ label: "最短时间", value: 6, unit: "小时" }, { label: "最长时间", value: 30, unit: "天" }] },
       { id: "expiry-near", label: "临近停止交易", condition: "2 小时 <= hoursToClose < 6 小时", score: 70, inputs: [{ label: "最短时间", value: 2, unit: "小时" }, { label: "最长时间", value: 6, unit: "小时" }] },
       { id: "expiry-far", label: "到期较远", condition: "30 天 < hoursToClose <= 90 天", score: 65, inputs: [{ label: "起始时间", value: 30, unit: "天" }, { label: "最长时间", value: 90, unit: "天" }] },
-      { id: "expiry-invalid", label: "不适合准入", condition: "hoursToClose < 2 小时、> 90 天、已停止交易或 endTime 缺失", score: 20, inputs: [{ label: "临近红线", value: 2, unit: "小时" }, { label: "过远红线", value: 90, unit: "天" }] },
     ],
     example: "3 天后到期 = 95 分",
   },
   {
     name: "API 可交易性",
-    weight: 15,
+    weight: 20,
     description: "用标准化交易能力字段判断是否能真实下单和追踪",
-    sourceFields: ["orderbookStatus", "quoteAvailable", "canPlaceOrder", "canCancelOrder", "canQueryOrder", "canQueryPosition", "authStatus", "chainSupported", "collateralSupported"],
+    sourceFields: ["orderbookAvailable", "quoteAvailable", "canPlaceOrder", "canCancelOrder", "canQueryOrder", "canQueryPosition", "canQueryTrades", "authStatus", "chainSupported", "collateralSupported"],
     scoreRule: "按盘口、Quote、下单、撤单、订单查询、持仓查询、认证、链和资产支持状态打分。",
     scoreBands: [
+      { id: "api-unavailable", label: "不可交易", condition: "下单不可用、认证失败、链/资产不支持或核心盘口缺失", score: 0, inputs: [] },
       { id: "api-full", label: "全部能力可用", condition: "核心和辅助能力均可用且 authStatus=valid", score: 100, inputs: [] },
       { id: "api-core", label: "核心交易能力可用", condition: "盘口、Quote、下单、撤单可用，仅辅助查询降级", score: 80, inputs: [] },
       { id: "api-unstable", label: "关键查询不稳定", condition: "Quote 或订单状态查询不稳定，适配器未完全中断", score: 50, inputs: [] },
-      { id: "api-unavailable", label: "不可交易", condition: "下单不可用、认证失败、链/资产不支持或核心盘口缺失", score: 0, inputs: [] },
     ],
     example: "CLOB 与订单查询正常 = 100 分",
   },
@@ -982,14 +968,14 @@ const instrumentRuleWeights = [
 const instrumentFilterRules = [
   { id: "sensitive_keyword", rule: "敏感关键词", condition: "标题/描述/标签/结算规则命中：election, sanction, war", action: "进入人工审核", status: "启用" },
   { id: "expiry_redline", rule: "到期时间红线", condition: "hoursToClose < 0.5 或 hoursToClose > 8760 或已停止交易", action: "直接过滤", status: "启用" },
-  { id: "unclear_rule", rule: "规则不清晰红线", condition: "结算来源缺失、规则解析失败或选项映射冲突", action: "进入人工审核", status: "启用" },
+  { id: "unclear_rule", rule: "规则不清晰红线", condition: "结算来源缺失、规则文本缺失、交易截止时间缺失、选项映射缺失、规则解析失败或选项映射冲突", action: "进入人工审核", status: "启用" },
   { id: "restricted_category", rule: "分类限制", condition: "category 命中：政治, 战争, 制裁", action: "进入人工审核", status: "启用" },
 ]
 
 const instrumentRulePreview = [
-  { title: "Bitcoin above 105K on Jun 14?", venue: "Polymarket", score: 97, decision: "进入可交易标的", reason: "流动性 95 / 热度 95 / 规则 100 / 到期 95 / API 100", next: "进入智能推荐候选池" },
-  { title: "BTC higher than 105K by Friday?", venue: "Predict.fun", score: 86, decision: "进入可交易标的", reason: "流动性 82 / 热度 80 / 规则 100 / 到期 95 / API 80", next: "进入智能推荐候选池" },
-  { title: "US CPI lower than forecast?", venue: "Predict.fun", score: 68, decision: "人工审核", reason: "流动性 35 / 热度 60 / 规则 75 / 到期 95 / API 80", next: "审核通过后才进入可交易标的" },
+  { title: "Bitcoin above 105K on Jun 14?", venue: "Polymarket", score: 96, decision: "进入可交易标的", reason: "流动性 95 / 热度 95 / 到期 95 / API 100", next: "进入智能推荐候选池" },
+  { title: "BTC higher than 105K by Friday?", venue: "Predict.fun", score: 83, decision: "进入可交易标的", reason: "流动性 82 / 热度 80 / 到期 95 / API 80", next: "不自动推荐，需看推荐护栏" },
+  { title: "US CPI lower than forecast?", venue: "Predict.fun", score: 61, decision: "人工审核", reason: "流动性 35 / 热度 60 / 到期 95 / API 80", next: "审核通过后才进入可交易标的" },
   { title: "Regional election outcome?", venue: "Polymarket", score: 54, decision: "人工审核", reason: "命中敏感关键词强制人工审核规则", next: "审核通过后才进入可交易标的" },
 ]
 
@@ -1178,74 +1164,110 @@ const admissionCandidates = [
 
 const groupRuleWeights = [
   {
+    factor: "semantic_similarity",
     name: "主题语义相似",
     weight: 25,
     description: "用标题、描述、关键词和分类判断是否指向同一事件",
     sourceFields: ["normalizedTitle", "rawTitle", "description", "category", "tags", "semanticEmbeddingScore"],
-    scoreRule: "按标题语义、关键词、分类和描述相似度打分。",
+    scoreRule: "按标题语义分、核心关键词和标准分类一致性打分。",
     scoreBands: [
-      "semanticEmbeddingScore >= 0.92 且核心关键词一致：90-100 分",
-      "0.82 <= semanticEmbeddingScore < 0.92 且分类一致：70-89 分",
-      "0.68 <= semanticEmbeddingScore < 0.82：45-69 分",
-      "semanticEmbeddingScore < 0.68 或主题范围不同：0-44 分",
+      { label: "高度一致", score: 98, inputs: [{ key: "semanticEmbeddingScore", label: "语义相似分 >=", value: 0.92, suffix: "" }], checks: [{ key: "coreKeywordsMatched", label: "要求核心关键词一致", enabled: true }, { key: "categoryMatched", label: "要求标准分类一致", enabled: true }] },
+      { label: "基本一致", score: 85, inputs: [{ key: "semanticEmbeddingScore", label: "语义相似分 >=", value: 0.82, suffix: "" }], checks: [{ key: "categoryMatched", label: "要求标准分类一致", enabled: true }] },
+      { label: "弱相关", score: 55, inputs: [{ key: "semanticEmbeddingScore", label: "语义相似分 >=", value: 0.68, suffix: "" }], checks: [] },
+      { label: "不一致", score: 20, inputs: [{ key: "semanticEmbeddingScore", label: "语义相似分 <", value: 0.68, suffix: "" }], checks: [{ key: "scopeConflict", label: "主题范围不同直接命中本档", enabled: true }] },
     ],
     example: "Bitcoin above 105K / BTC higher than 105K = 96 分",
   },
   {
+    factor: "outcome_definition",
     name: "结果定义一致",
     weight: 30,
     description: "用结果选项和成立条件判断用户买的是不是同一件事",
     sourceFields: ["outcomeName", "outcomeSide", "outcomeDefinition", "thresholdValue", "comparisonOperator", "unit"],
     scoreRule: "按结果选项、阈值、方向、单位和成立条件一致性打分。",
     scoreBands: [
-      "outcomeDefinition、thresholdValue、comparisonOperator、unit 全部一致：95-100 分",
-      "表述不同但阈值、方向和单位一致：80-94 分",
-      "阈值或方向存在轻微歧义：40-79 分",
-      "结果定义不同、买 YES 含义不同或多选项范围不同：0-39 分",
+      { label: "完全一致", score: 99, inputs: [], checks: [{ key: "outcomeDefinitionMatched", label: "要求结果定义一致", enabled: true }, { key: "thresholdValueMatched", label: "要求阈值一致", enabled: true }, { key: "comparisonOperatorMatched", label: "要求比较方向一致", enabled: true }, { key: "unitMatched", label: "要求单位一致", enabled: true }] },
+      { label: "表述不同但条件一致", score: 88, inputs: [], checks: [{ key: "thresholdValueMatched", label: "要求阈值一致", enabled: true }, { key: "comparisonOperatorMatched", label: "要求比较方向一致", enabled: true }, { key: "unitMatched", label: "要求单位一致", enabled: true }] },
+      { label: "存在轻微歧义", score: 55, inputs: [], checks: [{ key: "needsManualInterpretation", label: "规则文本需要人工解释", enabled: true }] },
+      { label: "结果定义冲突", score: 0, inputs: [], checks: [{ key: "outcomeConflict", label: "YES/NO 含义、阈值或选项范围冲突", enabled: true }] },
     ],
     example: "BTC 高于 105K 且 YES 含义一致 = 98 分",
   },
   {
+    factor: "settlement_time",
     name: "结算时间一致",
     weight: 15,
     description: "用到期时间、结算窗口和时区判断是否同一开奖周期",
     sourceFields: ["endTime", "closeTime", "resolutionTime", "timezone", "settlementWindowHours"],
     scoreRule: "按结束时间差、结算窗口和时区换算结果打分。",
     scoreBands: [
-      "结束时间差 <= 5 分钟且结算窗口一致：95-100 分",
-      "结束时间差 <= 1 小时：75-94 分",
-      "结束时间差 <= 12 小时：40-74 分",
-      "结束时间差 > 12 小时或无明确时间：0-39 分",
+      { label: "同一开奖时间", score: 100, inputs: [{ key: "closeTimeDiffMinutes", label: "结束时间差 <=", value: 5, suffix: "分钟" }], checks: [{ key: "timezoneNormalized", label: "要求时区换算后一致", enabled: true }, { key: "settlementWindowMatched", label: "要求结算窗口一致", enabled: true }] },
+      { label: "短时间差", score: 82, inputs: [{ key: "closeTimeDiffMinutes", label: "结束时间差 <=", value: 60, suffix: "分钟" }], checks: [{ key: "timezoneNormalized", label: "要求时区换算后一致", enabled: true }] },
+      { label: "同日但周期可能不同", score: 45, inputs: [{ key: "closeTimeDiffMinutes", label: "结束时间差 <=", value: 720, suffix: "分钟" }], checks: [] },
+      { label: "时间冲突", score: 0, inputs: [{ key: "closeTimeDiffMinutes", label: "结束时间差 >", value: 720, suffix: "分钟" }], checks: [{ key: "missingCloseTime", label: "截止时间缺失也命中本档", enabled: true }] },
     ],
     example: "同为 2026-06-14 23:59 UTC = 100 分",
   },
   {
+    factor: "settlement_rule",
     name: "结算规则一致",
     weight: 25,
     description: "用数据源、判定口径和异常处理规则判断是否会按同一标准开奖",
     sourceFields: ["resolutionSource", "resolutionRuleText", "oracleSource", "dataProvider", "tieBreakRule", "ruleParseStatus"],
     scoreRule: "按结算来源、数据口径、异常处理和规则解析状态打分。",
     scoreBands: [
-      "resolutionSource、数据口径、异常处理全部一致：95-100 分",
-      "来源一致但描述细节略有差异：75-94 分",
-      "来源不同但可人工确认等价：45-74 分",
-      "判定口径冲突、异常处理不同或规则无法解析：0-44 分",
+      { label: "完全一致", score: 98, inputs: [], checks: [{ key: "resolutionSourceMatched", label: "要求结算来源一致", enabled: true }, { key: "dataProviderMatched", label: "要求数据提供方一致", enabled: true }, { key: "tieBreakRuleMatched", label: "要求异常处理规则一致", enabled: true }, { key: "ruleParseStatusClear", label: "要求规则解析状态为 clear", enabled: true }] },
+      { label: "来源一致但描述略有差异", score: 85, inputs: [], checks: [{ key: "resolutionSourceMatched", label: "要求结算来源一致", enabled: true }, { key: "ruleParseStatusClear", label: "要求规则解析状态为 clear", enabled: true }] },
+      { label: "来源不同但可解释等价", score: 55, inputs: [], checks: [{ key: "equivalentSourceMapped", label: "要求存在等价来源映射", enabled: true }] },
+      { label: "规则冲突或无法解析", score: 0, inputs: [], checks: [{ key: "ruleParseFailed", label: "规则解析失败/口径冲突/异常处理不同", enabled: true }] },
     ],
     example: "均以 Coinbase BTC/USD 结算价判定 = 96 分",
   },
   {
+    factor: "trade_parameter",
     name: "交易参数一致性",
     weight: 5,
     description: "用价格、交易状态、可交易性辅助判断是否适合放在同主题展示",
     sourceFields: ["probability", "bestAsk", "bestBid", "tradableStatus", "marketType", "collateralToken", "chainId"],
     scoreRule: "交易参数只作低权重辅助，不决定是否同一事件。",
     scoreBands: [
-      "交易状态均可交易且概率差 <= 5%：90-100 分",
-      "均可交易但概率差 5%-15%：65-89 分",
-      "其中一方仅展示或流动性偏低：40-64 分",
-      "市场类型冲突或一方已关闭：0-39 分",
+      { label: "交易状态一致", score: 95, inputs: [{ key: "probabilityDiffPct", label: "概率差 <=", value: 5, suffix: "%" }], checks: [{ key: "bothTradable", label: "要求两边均可交易", enabled: true }, { key: "marketTypeMatched", label: "要求市场类型一致", enabled: true }] },
+      { label: "价格差较大但仍可展示", score: 70, inputs: [{ key: "probabilityDiffPct", label: "概率差 <=", value: 15, suffix: "%" }], checks: [{ key: "bothTradable", label: "要求两边均可交易", enabled: true }] },
+      { label: "一方状态较弱", score: 45, inputs: [], checks: [{ key: "oneSideDisplayOnly", label: "其中一方仅展示或流动性偏低", enabled: true }] },
+      { label: "交易状态冲突", score: 0, inputs: [], checks: [{ key: "marketTypeConflict", label: "市场类型冲突或一方已关闭", enabled: true }] },
     ],
     example: "两边都可交易，概率差 1% = 95 分",
+  },
+]
+
+const groupSimulationPairs = [
+  {
+    id: "SIM-BTC-105K",
+    label: "BTC 105K 同主题候选",
+    pair: "Polymarket BTC above 105K / Predict.fun BTC higher than 105K",
+    hardConflict: "无",
+    bandIndexes: [0, 0, 0, 1, 0],
+    fields: {
+      semanticEmbeddingScore: "0.96",
+      closeTimeDiffMinutes: "0",
+      probabilityDiffPct: "1.0%",
+      resolutionSource: "Coinbase BTC/USD",
+      outcomeDefinition: "BTC 结算价高于 105,000",
+    },
+  },
+  {
+    id: "SIM-CPI-DIFF",
+    label: "CPI 相似但时间冲突候选",
+    pair: "US CPI lower than forecast / US CPI below estimate next month",
+    hardConflict: "交易截止时间差超过 12 小时",
+    bandIndexes: [1, 2, 3, 2, 1],
+    fields: {
+      semanticEmbeddingScore: "0.86",
+      closeTimeDiffMinutes: "1440",
+      probabilityDiffPct: "8.2%",
+      resolutionSource: "BLS CPI release",
+      outcomeDefinition: "预测周期不同",
+    },
   },
 ]
 
@@ -1659,6 +1681,9 @@ function InstrumentFilterRuleForm({
   const [filterClosed, setFilterClosed] = useState(initialRule?.condition.includes("已停止交易") ?? true)
   const [unclearChecks, setUnclearChecks] = useState({
     missingSource: initialRule?.condition.includes("结算来源缺失") ?? true,
+    missingRuleText: initialRule?.condition.includes("规则文本缺失") ?? true,
+    missingCloseTime: initialRule?.condition.includes("交易截止时间缺失") ?? true,
+    missingOutcomeMapping: initialRule?.condition.includes("选项映射缺失") ?? true,
     parseFailed: initialRule?.condition.includes("规则解析失败") ?? true,
     outcomeConflict: initialRule?.condition.includes("选项映射冲突") ?? true,
   })
@@ -1674,7 +1699,14 @@ function InstrumentFilterRuleForm({
     : ruleId === "expiry_redline"
       ? `hoursToClose < ${minimumHours} 或 hoursToClose > ${maximumDays * 24}${filterClosed ? " 或已停止交易" : ""}`
       : ruleId === "unclear_rule"
-        ? [unclearChecks.missingSource ? "结算来源缺失" : "", unclearChecks.parseFailed ? "规则解析失败" : "", unclearChecks.outcomeConflict ? "选项映射冲突" : ""].filter(Boolean).join("、")
+        ? [
+          unclearChecks.missingSource ? "结算来源缺失" : "",
+          unclearChecks.missingRuleText ? "规则文本缺失" : "",
+          unclearChecks.missingCloseTime ? "交易截止时间缺失" : "",
+          unclearChecks.missingOutcomeMapping ? "选项映射缺失" : "",
+          unclearChecks.parseFailed ? "规则解析失败" : "",
+          unclearChecks.outcomeConflict ? "选项映射冲突" : "",
+        ].filter(Boolean).join("、")
         : `category 命中：${categories.trim()}`
 
   return (
@@ -1735,9 +1767,16 @@ function InstrumentFilterRuleForm({
 
         {ruleId === "unclear_rule" && <div className="rounded-lg border bg-white p-4">
           <div className="text-sm font-semibold">严重规则异常配置</div>
-          <div className="mt-2 text-xs text-muted-foreground">普通描述不完整由规则清晰度评分处理；这里只配置必须过滤或人工审核的严重异常。</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {[["missingSource", "结算来源缺失"], ["parseFailed", "规则解析失败"], ["outcomeConflict", "选项映射冲突"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border p-3 text-sm">
+          <div className="mt-2 text-xs text-muted-foreground">规则清晰度不再参与推荐分。这里只配置可由标准化字段直接判断的严重异常，命中后按本规则进入人工审核或直接过滤。</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              ["missingSource", "hasResolutionSource=false"],
+              ["missingRuleText", "hasResolutionRuleText=false"],
+              ["missingCloseTime", "hasTradingCloseTime=false"],
+              ["missingOutcomeMapping", "hasOutcomeMapping=false"],
+              ["parseFailed", "ruleParseStatus=failed"],
+              ["outcomeConflict", "outcomeMappingConflict=true"],
+            ].map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border p-3 text-sm">
               <input disabled={readonly} type="checkbox" checked={unclearChecks[key as keyof typeof unclearChecks]} onChange={(event) => setUnclearChecks((current) => ({ ...current, [key]: event.target.checked }))} />{label}
             </label>)}
           </div>
@@ -1863,11 +1902,36 @@ function GroupScoreRuleEditor({
   onSave: (rule: GroupScoringRule) => void
 }) {
   const [draft, setDraft] = useState(rule)
+  const updateBandScore = (bandIndex: number, score: number) => {
+    const nextBands = draft.scoreBands.map((band, index) => index === bandIndex ? { ...band, score } : band)
+    setDraft({ ...draft, scoreBands: nextBands })
+  }
+  const updateBandInput = (bandIndex: number, inputIndex: number, value: number) => {
+    const nextBands = draft.scoreBands.map((band, index) => {
+      if (index !== bandIndex) return band
+      return {
+        ...band,
+        inputs: band.inputs.map((input, currentInputIndex) => currentInputIndex === inputIndex ? { ...input, value } : input),
+      }
+    })
+    setDraft({ ...draft, scoreBands: nextBands })
+  }
+  const updateBandCheck = (bandIndex: number, checkIndex: number, enabled: boolean) => {
+    const nextBands = draft.scoreBands.map((band, index) => {
+      if (index !== bandIndex) return band
+      return {
+        ...band,
+        checks: band.checks.map((check, currentCheckIndex) => currentCheckIndex === checkIndex ? { ...check, enabled } : check),
+      }
+    })
+    setDraft({ ...draft, scoreBands: nextBands })
+  }
+
   return (
     <Panel title={`${rule.name}匹配配置`}>
       <div className="space-y-4">
         <div className="rounded-md border bg-zinc-50 p-3 text-sm text-muted-foreground">
-          这里配置的是单个归组匹配项的量化规则。字段来源来自两个候选标的的标准化字段对比，保存后先进入草稿，最终随“保存规则”发布版本。
+          这里配置的是单个归组匹配项的固定档位。档位数量、字段来源和因子类型由系统固定，运营只调整阈值、勾选条件和精确分值。
         </div>
         <div>
           <div className="mb-2 text-sm font-semibold">参与比对的接口字段</div>
@@ -1877,43 +1941,60 @@ function GroupScoreRuleEditor({
             ))}
           </div>
         </div>
-        <label className="block space-y-1 text-sm">
-          <span className="text-xs text-muted-foreground">字段来源，可用逗号增减字段</span>
-          <input
-            className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900"
-            value={draft.sourceFields.join(", ")}
-            onChange={(event) => setDraft({ ...draft, sourceFields: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })}
-          />
-        </label>
-        <label className="block space-y-1 text-sm">
-          <span className="text-xs text-muted-foreground">匹配逻辑说明</span>
-          <textarea
-            className="min-h-20 w-full rounded-md border px-3 py-2 outline-none focus:border-zinc-900"
-            value={draft.scoreRule}
-            onChange={(event) => setDraft({ ...draft, scoreRule: event.target.value })}
-          />
-        </label>
         <div className="space-y-2">
-          <div className="text-sm font-semibold">匹配分区间配置</div>
+          <div className="text-sm font-semibold">固定档位配置</div>
           {draft.scoreBands.map((band, index) => (
-            <div key={`${draft.name}-${index}`} className="flex gap-2">
-              <input
-                className="h-10 min-w-0 flex-1 rounded-md border px-3 text-sm outline-none focus:border-zinc-900"
-                value={band}
-                onChange={(event) => {
-                  const nextBands = [...draft.scoreBands]
-                  nextBands[index] = event.target.value
-                  setDraft({ ...draft, scoreBands: nextBands })
-                }}
-              />
-              <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, scoreBands: draft.scoreBands.filter((_, bandIndex) => bandIndex !== index) })}>
-                删除
-              </Button>
+            <div key={`${draft.name}-${band.label}`} className="rounded-lg border bg-white p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">{band.label}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">固定档位，不可新增或删除</div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-xs text-muted-foreground">精确分值</span>
+                  <input
+                    className="h-9 w-20 rounded-md border px-2 text-right outline-none focus:border-zinc-900"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={band.score}
+                    onChange={(event) => updateBandScore(index, Number(event.target.value))}
+                  />
+                </label>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {band.inputs.map((input, inputIndex) => (
+                  <label key={input.key} className="block space-y-1 text-sm">
+                    <span className="text-xs text-muted-foreground">{input.label}</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="h-10 min-w-0 flex-1 rounded-md border px-3 outline-none focus:border-zinc-900"
+                        type="number"
+                        step={input.key.includes("Score") ? "0.01" : "1"}
+                        value={input.value}
+                        onChange={(event) => updateBandInput(index, inputIndex, Number(event.target.value))}
+                      />
+                      {input.suffix && <span className="text-xs text-muted-foreground">{input.suffix}</span>}
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {band.checks.length > 0 && (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {band.checks.map((check, checkIndex) => (
+                    <label key={check.key} className="flex items-center gap-2 rounded-md border bg-zinc-50 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={check.enabled}
+                        onChange={(event) => updateBandCheck(index, checkIndex, event.target.checked)}
+                      />
+                      <span>{check.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
-          <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, scoreBands: [...draft.scoreBands, "新增条件：匹配分区间"] })}>
-            新增区间
-          </Button>
         </div>
         <label className="block space-y-1 text-sm">
           <span className="text-xs text-muted-foreground">匹配示例</span>
@@ -2517,7 +2598,7 @@ function AdmissionReviewDetail({
                 ["liquidityUsd", item.liquidityUsd, "计算流动性评分"],
                 ["volume24hUsd", item.volume24hUsd, "计算成交量/热度评分"],
                 ["endTime", item.endTime, "计算到期时间评分"],
-                ["ruleParseStatus", item.ruleParseStatus, "计算规则清晰度评分"],
+                ["ruleParseStatus", item.ruleParseStatus, "判断是否命中规则不清晰红线"],
                 ["sensitiveKeywords", item.sensitiveHit, "判断是否命中强制人工审核"],
                 ["apiTradable", item.apiTradable, "计算 API 可交易性评分"],
               ]}
@@ -3404,9 +3485,11 @@ function App() {
   const [admissionTab, setAdmissionTab] = useState<"pending" | "history">("pending")
   const [admissionAdvancedFilters, setAdmissionAdvancedFilters] = useState({ venue: "全部", trigger: "全部", score: "全部", sla: "全部" })
   const [groupRulesEditing, setGroupRulesEditing] = useState(false)
-  const [groupRuleVersion, setGroupRuleVersion] = useState("v1.2 / 生效中")
+  const [groupRuleVersion, setGroupRuleVersion] = useState("group_rule_v1.5 / 生效中")
   const [groupScoringRules, setGroupScoringRules] = useState<GroupScoringRule[]>(groupRuleWeights)
+  const [groupThresholds, setGroupThresholds] = useState({ manualReviewMinScore: 95, autoGroupMinScore: 98 })
   const [selectedGroupScoringRule, setSelectedGroupScoringRule] = useState<GroupScoringRule>(groupRuleWeights[0])
+  const [selectedGroupSimulationId, setSelectedGroupSimulationId] = useState(groupSimulationPairs[0].id)
   const [platformFeeEditing, setPlatformFeeEditing] = useState(false)
   const [platformFeeVersion, setPlatformFeeVersion] = useState("fee_v1 / 生效中")
   const [platformFeeConfig, setPlatformFeeConfig] = useState(initialPlatformFeeConfig)
@@ -3432,6 +3515,26 @@ function App() {
     && instrumentThresholds.autoAdmitMinScore <= instrumentThresholds.smartRecommendMinScore
     && instrumentThresholds.smartRecommendMinScore <= 100
   const totalGroupWeight = useMemo(() => groupScoringRules.reduce((sum, item) => sum + item.weight, 0), [groupScoringRules])
+  const groupThresholdsValid = groupThresholds.manualReviewMinScore >= 0
+    && groupThresholds.manualReviewMinScore < groupThresholds.autoGroupMinScore
+    && groupThresholds.autoGroupMinScore <= 100
+  const groupScoresValid = useMemo(() => groupScoringRules.every((rule) => rule.scoreBands.every((band) => Number.isInteger(band.score) && band.score >= 0 && band.score <= 100 && band.inputs.every((input) => Number.isFinite(input.value) && input.value >= 0))), [groupScoringRules])
+  const selectedGroupSimulation = useMemo(
+    () => groupSimulationPairs.find((item) => item.id === selectedGroupSimulationId) ?? groupSimulationPairs[0],
+    [selectedGroupSimulationId],
+  )
+  const groupSimulationBreakdown = useMemo(() => groupScoringRules.map((rule, index) => {
+    const band = rule.scoreBands[selectedGroupSimulation.bandIndexes[index]] ?? rule.scoreBands[rule.scoreBands.length - 1]
+    return { name: rule.name, weight: rule.weight, band: band.label, score: band.score, weighted: Math.round(band.score * rule.weight) / 100 }
+  }), [groupScoringRules, selectedGroupSimulation])
+  const simulatedGroupScore = useMemo(() => Math.round(groupSimulationBreakdown.reduce((sum, item) => sum + item.score * item.weight / 100, 0)), [groupSimulationBreakdown])
+  const simulatedGroupDecision = selectedGroupSimulation.hardConflict !== "无"
+    ? "不归组"
+    : simulatedGroupScore >= groupThresholds.autoGroupMinScore
+      ? "自动归组"
+      : simulatedGroupScore >= groupThresholds.manualReviewMinScore
+        ? "进入归组审核"
+        : "不归组"
   const feePreviewAmount = useMemo(() => ((100 * platformFeeDraft.problyBaseFeeBps) / 10000).toFixed(2), [platformFeeDraft.problyBaseFeeBps])
   const feeConfigValid = platformFeeDraft.problyBaseFeeBps >= 0 && platformFeeDraft.maxBuilderFeeBps >= platformFeeDraft.problyBaseFeeBps
   const updateFilter = (key: string, next: ListFilterState) => setFilters((current) => ({ ...current, [key]: next }))
@@ -3766,7 +3869,7 @@ function App() {
                 <Panel title="今日待处理">
                   <div className="space-y-3">
                     {[
-                      ["高匹配归组待确认", "18", "仅匹配度 >= 95 的候选进入"],
+                      ["归组待审核", "18", "95 <= 匹配度 < 98 的候选进入"],
                       ["智能推荐待审", "14", "3 个 Quote 即将过期"],
                       ["结算异常", "2", "需要人工刷新底层状态"],
                       ["认证告警", "1", "Predict.fun JWT 刷新失败"],
@@ -4336,14 +4439,22 @@ function App() {
                         <>
                           <Button
                             size="sm"
-                            disabled={totalGroupWeight !== 100}
                             onClick={() => {
-                              setGroupRulesEditing(false)
-                              setGroupRuleVersion("v1.3 / 生效中")
-                              showToast("事件归组规则已保存为新版本。后续归组任务会按最新匹配度阈值重新计算。")
+                              showToast("事件归组规则草稿已保存，未发布前不影响线上归组任务。")
                             }}
                           >
-                            保存规则
+                            保存草稿
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={totalGroupWeight !== 100 || !groupThresholdsValid || !groupScoresValid}
+                            onClick={() => {
+                              setGroupRulesEditing(false)
+                              setGroupRuleVersion("group_rule_v1.5 / 生效中")
+                              showToast("事件归组规则版本已发布，后续候选会按新的自动归组和人工审核阈值重新计算。")
+                            }}
+                          >
+                            发布规则版本
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => setGroupRulesEditing(false)}>取消编辑</Button>
                         </>
@@ -4364,12 +4475,12 @@ function App() {
                           匹配度 = {groupScoringRules.map((item) => `${item.name}分 × ${item.weight}%`).join(" + ")}。
                         </div>
                         <div className="mt-3 grid gap-3 md:grid-cols-3">
-                          <Info label="单项分范围" value="每个匹配项先独立计算 0-100 分" />
+                          <Info label="单项分规则" value="固定档位，命中后返回精确分值" />
                           <Info label="权重要求" value="单项 0-60%，全部权重合计必须等于 100%" />
-                          <Info label="归组原则" value="高匹配才归组，否则不归组" />
+                          <Info label="归组原则" value="自动归组 / 人工审核 / 不归组三段分流" />
                         </div>
                         <div className={`mt-3 rounded-md border p-3 text-sm ${totalGroupWeight === 100 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-                          当前总权重：{totalGroupWeight}%。{totalGroupWeight === 100 ? "可以保存。" : "必须调整为 100% 后才能保存。"}
+                          当前总权重：{totalGroupWeight}%。{totalGroupWeight === 100 ? "权重校验通过。" : "必须调整为 100% 后才能发布。"}
                         </div>
                       </div>
                       <DataTable
@@ -4394,11 +4505,43 @@ function App() {
                       />
                     </div>
                     <div className="space-y-3">
-                      <Info label="允许归组" value="匹配度 >= 95" />
-                      <Info label="不归组" value="匹配度 < 95" />
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-sm font-semibold">事件匹配度归组规则</div>
+                        <div className="mt-3 grid gap-3">
+                          <label className="block space-y-1 text-sm">
+                            <span className="text-xs text-muted-foreground">自动归组：匹配度 &gt;=</span>
+                            <input
+                              className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={groupThresholds.autoGroupMinScore}
+                              disabled={!groupRulesEditing}
+                              onChange={(event) => setGroupThresholds((current) => ({ ...current, autoGroupMinScore: Number(event.target.value) }))}
+                            />
+                          </label>
+                          <label className="block space-y-1 text-sm">
+                            <span className="text-xs text-muted-foreground">进入归组审核：匹配度 &gt;=</span>
+                            <input
+                              className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900 disabled:bg-zinc-50"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={groupThresholds.manualReviewMinScore}
+                              disabled={!groupRulesEditing}
+                              onChange={(event) => setGroupThresholds((current) => ({ ...current, manualReviewMinScore: Number(event.target.value) }))}
+                            />
+                          </label>
+                        </div>
+                        <div className={`mt-3 rounded-md border p-3 text-xs ${groupThresholdsValid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                          {groupThresholdsValid
+                            ? `自动归组 >= ${groupThresholds.autoGroupMinScore}；${groupThresholds.manualReviewMinScore} <= 匹配度 < ${groupThresholds.autoGroupMinScore} 进入归组审核；低于 ${groupThresholds.manualReviewMinScore} 不归组。`
+                            : "阈值必须满足 0 <= 人工审核阈值 < 自动归组阈值 <= 100。"}
+                        </div>
+                      </div>
                       <Info label="归组口径" value="结果定义、结算时间、结算规则必须高度一致" />
                       <Info label="当前状态" value={groupRulesEditing ? "编辑中，未保存前不影响线上归组" : "浏览态，规则正在生效"} />
-                      <Info label="保存条件" value={totalGroupWeight === 100 ? "权重校验通过" : `当前总权重 ${totalGroupWeight}%，不能保存`} />
+                      <Info label="发布条件" value={totalGroupWeight === 100 && groupThresholdsValid && groupScoresValid ? "权重、阈值、精确分值均通过" : "需修正权重、阈值或精确分值"} />
                       <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground">
                         Polygon/BNB Chain、USDC/USDT 等平台资产差异不作为匹配评分项，只在前台和订单详情里展示，不代表不能归组。
                       </div>
@@ -4433,12 +4576,56 @@ function App() {
                         <div className="mt-2 text-sm text-muted-foreground">{item.scoreRule}</div>
                         <div className="mt-3 space-y-2">
                           {item.scoreBands.slice(0, 3).map((band) => (
-                            <div key={band} className="rounded-md border bg-zinc-50 p-2 text-xs text-muted-foreground">{band}</div>
+                            <div key={`${item.name}-${band.label}`} className="rounded-md border bg-zinc-50 p-2 text-xs text-muted-foreground">
+                              {band.label}：{band.inputs.map((input) => `${input.label} ${input.value}${input.suffix}`).join("，") || band.checks.map((check) => check.label).join("，")}；精确分值 {band.score}
+                            </div>
                           ))}
                         </div>
                         <div className="mt-3 rounded-md border bg-white p-3 text-xs text-muted-foreground">示例：{item.example}</div>
                       </div>
                     ))}
+                  </div>
+                </Panel>
+
+                <Panel title="规则试算">
+                  <div className="grid gap-4 xl:grid-cols-[0.75fr_1fr]">
+                    <div className="space-y-3">
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">选择候选事件对</span>
+                        <select
+                          className="h-10 w-full rounded-md border px-3 outline-none focus:border-zinc-900"
+                          value={selectedGroupSimulationId}
+                          onChange={(event) => setSelectedGroupSimulationId(event.target.value)}
+                        >
+                          {groupSimulationPairs.map((item) => (
+                            <option key={item.id} value={item.id}>{item.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <Info label="候选事件对" value={selectedGroupSimulation.pair} />
+                      <Info label="硬性冲突" value={selectedGroupSimulation.hardConflict} />
+                      <Info label="试算结果" value={`${simulatedGroupScore} 分 / ${simulatedGroupDecision}`} />
+                      <div className="rounded-lg border bg-zinc-50 p-3 text-xs text-muted-foreground">
+                        规则试算只用于验证草稿规则，不会生成 EventGroup，也不会进入归组审核列表。
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <DataTable
+                        columns={["匹配项", "命中档位", "单项分", "权重", "加权分"]}
+                        rows={groupSimulationBreakdown.map((item) => [
+                          item.name,
+                          item.band,
+                          item.score,
+                          `${item.weight}%`,
+                          item.weighted.toFixed(2),
+                        ])}
+                      />
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {Object.entries(selectedGroupSimulation.fields).map(([key, value]) => (
+                          <Info key={key} label={key} value={value} />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </Panel>
               </div>
@@ -4476,9 +4663,9 @@ function App() {
                     ])}
                   />
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <Info label="进入条件" value="匹配度 >= 95，且结果定义、结算时间、结算规则、赔率方向等关键参数一致" />
+                    <Info label="进入条件" value="95 <= 匹配度 < 98，且无结果定义、结算时间、结算规则硬性冲突" />
                     <Info label="确认动作" value="运营确认后只生成 EventGroup，用于同主题展示、持仓归组和套利提示" />
-                    <Info label="不入选规则" value="匹配度不足或关键参数冲突的市场不进入该列表，也不会被人工强行归组" />
+                    <Info label="不入选规则" value="匹配度低于 95 或存在硬性冲突则不归组；98 以上可自动归组" />
                   </div>
                 </Panel>
               </div>
@@ -4934,7 +5121,7 @@ function App() {
                   />
                 )}
                 {detailView === "groupScoreRule" && (
-                  <GroupScoreRuleEditor rule={selectedGroupScoringRule} onSave={saveGroupScoringRule} />
+                  <GroupScoreRuleEditor key={selectedGroupScoringRule.name} rule={selectedGroupScoringRule} onSave={saveGroupScoringRule} />
                 )}
                 {detailView === "group" && <GroupReviewDetail group={selectedGroup} decision={groupDecision} onDecision={setGroupDecision} />}
                 {detailView === "autoOrder" && <AutoOrderDetail key={selectedAutoOrder.id} item={selectedAutoOrder} result={autoOrderResult} onResult={setAutoOrderResult} />}
